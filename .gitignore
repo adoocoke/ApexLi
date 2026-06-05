@@ -149,3 +149,4 @@ Thumbs.db
 # Project specific
 *.log
 output/eaagent_memory.db
+eaagent_memory.db
