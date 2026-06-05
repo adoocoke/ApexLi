@@ -1,18 +1,19 @@
 # eaagent
 
-**eaagent** 是一个基于 **Grok (xAI)** 的简洁、强大、可扩展的 ReAct Agent 实现。
+**eaagent** 是一个基于 **Grok (xAI)** 的简洁、强大、可扩展的 ReAct Agent 框架。
 
-专为快速构建工具调用型 Agent 而设计，特别适合交易策略、数据分析、自动化任务等场景。
+专为快速构建工具调用 + 记忆能力的 Agent 而设计，特别适合**期货交易分析**、数据处理、自动化任务等场景。
 
-## ✨ 特性
+## ✨ 核心特性
 
-- ✅ 基于 Grok-4.3（当前最强工具调用模型之一）
-- ✅ 完整 ReAct 循环（Thought → Action → Observation）
-- ✅ 极简 API：一行代码注册工具
-- ✅ 完全兼容 OpenAI SDK 格式
-- ✅ 支持自定义任意工具（天气、交易数据、计算、网页搜索等）
-- ✅ 清晰的执行日志，便于调试
-- ✅ 环境变量安全管理（支持 `.env`）
+- ✅ 基于 Grok-4.3（当前工具调用能力最强的模型之一）
+- ✅ 完整 ReAct 循环（Thought → Action → Observation → Answer）
+- ✅ **Memory 系统**（手动 + 自动提取 + SQLite 持久化）
+- ✅ 极简工具注册：一行代码即可添加任意工具
+- ✅ 支持 Tushare 期货数据（日线 + 分钟线）
+- ✅ 多方式安全管理 API Key（keyring / 环境变量 / GitHub Secrets）
+- ✅ 完整测试覆盖 + GitHub Actions CI
+- ✅ 清晰的执行日志，便于调试和学习
 
 ## 🚀 快速开始
 
@@ -26,29 +27,30 @@ cd eaagent
 ### 2. 安装依赖
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
-或使用 uv（推荐）：
+### 3. 配置 xAI API Key（推荐方式）
+
+#### 本地开发推荐使用 `keyring`（最安全）
 
 ```bash
-uv pip install -r requirements.txt
+pip install keyring
+
+# 只需执行一次
+python -c "
+import keyring
+keyring.set_password('eaagent', 'xai_api_key', 'xai-你的密钥')
+print('✅ API Key 已安全存入系统密钥管理器')
+"
 ```
 
-### 3. 配置 xAI API Key
+#### GitHub CI 配置
 
-在项目根目录创建 `.env` 文件：
+在仓库 **Settings → Secrets and variables → Actions** 中添加：
 
-```env
-XAI_API_KEY=xai-你的密钥
-```
-
-**如何获取 API Key？**
-
-1. 访问 [https://console.x.ai](https://console.x.ai)
-2. 使用 X 账号登录
-3. 左侧菜单 → **API Keys** → 创建新密钥
-4. 复制以 `xai-` 开头的密钥
+- `XAI_API_KEY`：你的 xai- 密钥
+- `TUSHARE_TOKEN`：你的 Tushare Token（用于期货数据测试）
 
 ### 4. 运行示例
 
@@ -59,33 +61,40 @@ python examples/basic_weather.py
 ### 5. 运行测试
 
 ```bash
-# 安装开发依赖（包含 pytest）
-pip install -e ".[dev]"
-
 # 运行所有测试
 pytest
 
-# 只运行 agent 测试
+# 只运行 Agent 测试
 pytest tests/test_agent.py -v
+
+# 只运行 Memory 测试
+pytest tests/test_memory.py -v
 ```
+
+## 🧠 Memory 系统（核心亮点）
+
+eaagent 内置了完整的 Memory 能力：
+
+- **手动记忆**：`agent.remember("铁矿石趋势", "目前处于下降通道")`
+- **自动记忆提取**：开启 `auto_memory=True` 后，Agent 会自动从对话中提取关键事实
+- **SQLite 持久化**：记忆会自动保存到本地数据库，重启后依然存在
+- **跨会话可用**：适合需要长期记忆的交易分析场景
 
 ## 📦 项目结构
 
 ```
 eaagent/
-├── eaagent/                  # 核心代码
-│   ├── __init__.py
-│   ├── agent.py
+├── eaagent/
+│   ├── agent.py              # ReAct Agent 核心
+│   ├── memory.py             # SQLite 持久化 Memory
 │   └── tools/
-├── examples/                 # 使用示例
-│   └── basic_weather.py
-├── tests/                    # 单元测试
-│   ├── __init__.py
-│   └── test_agent.py
-├── pytest.ini
-├── requirements.txt
+│       ├── tushare_futures.py   # 日线工具
+│       └── tushare_minute.py    # 分钟线工具
+├── examples/
+├── tests/                    # 完整测试（Agent / Memory / Tushare）
+├── .github/workflows/
+│   └── test.yml              # CI 配置
 ├── pyproject.toml
-├── .gitignore
 └── README.md
 ```
 
@@ -94,77 +103,46 @@ eaagent/
 ```python
 from eaagent import ReActAgent
 
-def my_calculator(a: float, b: float, op: str) -> float:
-    if op == "+": return a + b
-    if op == "*": return a * b
-    ...
+def get_weather(city: str) -> str:
+    return f"{city} 今天天气晴朗，25°C"
 
-agent = ReActAgent(model="grok-4.3")
-
+agent = ReActAgent(verbose=True)
 agent.add_tool(
-    name="calculator",
-    description="执行基础数学计算",
+    name="get_weather",
+    description="查询城市天气",
     parameters={
         "type": "object",
-        "properties": {
-            "a": {"type": "number"},
-            "b": {"type": "number"},
-            "op": {"type": "string", "enum": ["+", "-", "*", "/"]}
-        },
-        "required": ["a", "b", "op"]
+        "properties": {"city": {"type": "string"}},
+        "required": ["city"]
     },
-    function=my_calculator
+    function=get_weather
 )
 
-agent.run("计算 123 * 45 + 67 的结果")
+agent.run("北京今天天气怎么样？")
 ```
 
-## 🔧 进阶用法
-
-### 修改模型
+## 📈 期货数据工具（Tushare）
 
 ```python
-agent = ReActAgent(model="grok-4.3")           # 推荐（工具调用最强）
-# agent = ReActAgent(model="grok-build-0.1")   # 代码生成场景
+from eaagent.tools import get_futures_daily, get_futures_minute
+
+# 日线
+print(get_futures_daily("RB2405.SHF", "20240301"))
+
+# 分钟线
+print(get_futures_minute("RB2405.SHF", "20240305090000", freq="5min"))
 ```
 
-### 关闭详细日志
+**需要 Tushare Token？**
 
-```python
-agent = ReActAgent(verbose=False)
-```
+访问 [https://tushare.pro](https://tushare.pro) 注册并获取 Token，设置环境变量 `TUSHARE_TOKEN` 即可使用。
 
-### 增加最大步数
-
-```python
-agent = ReActAgent(max_steps=20)
-```
-
-## 🎯 适用场景
-
-- 交易策略 Agent（期货、技术分析、多时间框架）
-- 数据查询 + 分析自动化
-- 复杂多步推理任务
-- 快速原型验证工具调用能力
-
-## 📌 后续规划（欢迎贡献）
-
-- [ ] 支持 LangGraph / CrewAI 风格多 Agent
-- [ ] 内置常用交易工具（K线、技术指标）
-- [ ] 支持记忆与 checkpoint
-- [ ] CLI 命令行工具
-- [ ] 更多真实工具集成（网页搜索、代码执行等）
+---
 
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
 
-## 📄 License
-
-MIT License
-
 ---
 
-**Powered by Grok-4.3** | Made with ❤️ by adoocoke
-
-如有问题或建议，欢迎在 Issues 中讨论。refresh contributors
+**License**: MIT
