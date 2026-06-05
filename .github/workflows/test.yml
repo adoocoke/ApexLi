@@ -30,5 +30,8 @@ jobs:
           pip install -e ".[dev,tushare]"
 
       - name: Run tests with pytest
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: |
           python -m pytest -v --tb=short
