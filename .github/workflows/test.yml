@@ -29,9 +29,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,tushare]"
 
-      - name: Run tests with pytest
+      - name: Run tests with coverage
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: |
-          python -m pytest -v --tb=short
+          python -m pytest \
+            --cov=eaagent \
+            --cov-report=xml \
+            --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
