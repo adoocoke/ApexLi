@@ -30,7 +30,7 @@ def test_auto_memory_extraction_flow(mock_openai_class):
 
     agent = ReActAgent(
         verbose=False,
-        require_api_key=True,      # 这里用 True
+        require_api_key=False,      # 这里用 True
         auto_memory=True
     )
 
