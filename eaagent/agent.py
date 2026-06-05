@@ -13,11 +13,6 @@ load_dotenv()
 
 
 class ReActAgent:
-    """
-    简洁强大的 ReAct Agent
-    使用 Grok 模型 + 工具调用实现思考-行动循环
-    """
-
     def __init__(
         self,
         model: str = "grok-4.3",
@@ -26,75 +21,56 @@ class ReActAgent:
         temperature: float = 0.7,
         max_steps: int = 15,
         verbose: bool = True,
+        require_api_key: bool = True,
     ):
         self.model = model
         self.temperature = temperature
         self.max_steps = max_steps
         self.verbose = verbose
 
-        api_key = api_key or os.getenv("XAI_API_KEY")
-        if not api_key:
-            raise ValueError("请提供 XAI_API_KEY 或设置环境变量 XAI_API_KEY")
-
-        self.client = OpenAI(
-            api_key=api_key,
-            base_url=base_url,
-        )
+        if require_api_key:
+            api_key = api_key or os.getenv("XAI_API_KEY")
+            if not api_key:
+                raise ValueError("请提供 XAI_API_KEY 或设置环境变量 XAI_API_KEY")
+            self.client = OpenAI(api_key=api_key, base_url=base_url)
+        else:
+            self.client = None
 
         self.tools: List[Dict] = []
         self.tool_functions: Dict[str, Callable] = {}
-
-        # 简单记忆系统（A计划）
         self.memory: Dict[str, str] = {}
 
-    def add_tool(
-        self,
-        name: str,
-        description: str,
-        parameters: Dict[str, Any],
-        function: Callable,
-    ):
+    def add_tool(self, name, description, parameters, function):
         tool_def = {
             "type": "function",
-            "function": {
-                "name": name,
-                "description": description,
-                "parameters": parameters,
-            },
+            "function": {"name": name, "description": description, "parameters": parameters},
         }
         self.tools.append(tool_def)
         self.tool_functions[name] = function
-
         if self.verbose:
             print(f"[Agent] 已注册工具: {name}")
 
     def remember(self, key: str, value: str):
-        """记住一个事实（简单记忆）"""
         self.memory[key] = value
         if self.verbose:
             print(f"[Memory] 已记住: {key} = {value}")
 
-    def recall(self, key: str = None) -> Dict[str, str] | str:
-        """取出记忆"""
+    def recall(self, key: str = None):
         if key:
             return self.memory.get(key, "")
         return self.memory.copy()
 
-    def _execute_tool(self, tool_call) -> str:
+    def _execute_tool(self, tool_call):
         name = tool_call.function.name
         args = json.loads(tool_call.function.arguments or "{}")
-
         if name not in self.tool_functions:
             return f"错误：未知工具 {name}"
-
         try:
-            result = self.tool_functions[name](**args)
-            return str(result)
+            return str(self.tool_functions[name](**args))
         except Exception as e:
             return f"工具执行出错: {str(e)}"
 
-    def run(self, goal: str) -> str:
-        # 构建包含记忆的 System Prompt
+    def run(self, goal: str):
         memory_content = ""
         if self.memory:
             memory_content = "\n当前已知记忆：\n" + "\n".join(
@@ -121,6 +97,9 @@ class ReActAgent:
             if self.verbose:
                 print(f"\n=== Step {step} ===")
 
+            if self.client is None:
+                return "测试模式：未实际调用 API"
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -133,29 +112,18 @@ class ReActAgent:
             messages.append(assistant_msg.model_dump())
 
             if assistant_msg.tool_calls:
-                if self.verbose:
-                    print(f"调用工具: {[tc.function.name for tc in assistant_msg.tool_calls]}")
-
                 for tool_call in assistant_msg.tool_calls:
                     result = self._execute_tool(tool_call)
-
-                    if self.verbose:
-                        print(f"工具返回: {result[:200]}{'...' if len(result) > 200 else ''}")
-
-                    tool_message = {
+                    messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
                         "name": tool_call.function.name,
                         "content": result,
-                    }
-                    messages.append(tool_message)
+                    })
             else:
-                final_answer = assistant_msg.content or ""
-                if self.verbose:
-                    print(f"\n✅ 最终答案:\n{final_answer}")
-                return final_answer
+                return assistant_msg.content or ""
 
-        return "已达到最大步数限制，未能得到最终答案。"
+        return "达到最大步数限制"
 
-    def chat(self, goal: str) -> str:
+    def chat(self, goal: str):
         return self.run(goal)
