@@ -31,7 +31,7 @@ def test_auto_memory_extraction_flow(mock_openai_class):
     # 3. 这里必须用 require_api_key=True（让它正常初始化 client）
     agent = ReActAgent(
         verbose=False,
-        require_api_key=False,
+        require_api_key=True,
         auto_memory=True
     )
 
