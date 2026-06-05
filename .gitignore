@@ -150,3 +150,4 @@ Thumbs.db
 *.log
 output/eaagent_memory.db
 eaagent_memory.db
+.gradio/
