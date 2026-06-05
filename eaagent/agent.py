@@ -1,6 +1,6 @@
 """
-ReAct Agent - 基于 Grok (xAI) 的简洁 ReAct 实现
-支持自定义工具、自动工具调用循环 + 简单记忆 + 自动记忆提取（A计划）
+ReAct Agent - 基于 Grok (xAI) 的完整实现
+包含 Memory + 自动记忆 + 多方式安全读取 API Key（A计划）
 """
 
 import os
@@ -10,6 +10,13 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# 尝试导入 keyring（本地安全存储）
+try:
+    import keyring
+    HAS_KEYRING = True
+except ImportError:
+    HAS_KEYRING = False
 
 
 class ReActAgent:
@@ -31,21 +38,53 @@ class ReActAgent:
         self.auto_memory = auto_memory
 
         if require_api_key:
-            api_key = api_key or os.getenv("XAI_API_KEY")
-            if not api_key:
-                raise ValueError("请提供 XAI_API_KEY 或设置环境变量 XAI_API_KEY")
-            self.client = OpenAI(api_key=api_key, base_url=base_url)
+            final_key = self._get_api_key(api_key)
+            if not final_key:
+                raise ValueError(
+                    "未找到 XAI_API_KEY！\n"
+                    "本地推荐使用 keyring，CI 请在 GitHub Secrets 设置 XAI_API_KEY"
+                )
+            self.client = OpenAI(api_key=final_key, base_url=base_url)
         else:
-            self.client = None
+            self.client = None  # 测试模式
 
         self.tools: List[Dict] = []
         self.tool_functions: Dict[str, Callable] = {}
         self.memory: Dict[str, str] = {}
 
-    def add_tool(self, name, description, parameters, function):
+    def _get_api_key(self, provided_key: Optional[str] = None) -> Optional[str]:
+        """多优先级读取 API Key"""
+        if provided_key:
+            return provided_key
+
+        # 环境变量（支持 GitHub CI）
+        key = os.getenv("XAI_API_KEY")
+        if key:
+            if os.getenv("GITHUB_ACTIONS"):
+                print("[CI] 从 GitHub Secrets 读取 XAI_API_KEY")
+            return key
+
+        # 系统密钥管理器（本地推荐）
+        if HAS_KEYRING:
+            try:
+                key = keyring.get_password("eaagent", "xai_api_key")
+                if key:
+                    if self.verbose:
+                        print("[Keyring] 从系统密钥管理器读取 XAI_API_KEY")
+                    return key
+            except Exception:
+                pass
+
+        return None
+
+    def add_tool(self, name: str, description: str, parameters: Dict, function: Callable):
         tool_def = {
             "type": "function",
-            "function": {"name": name, "description": description, "parameters": parameters},
+            "function": {
+                "name": name,
+                "description": description,
+                "parameters": parameters,
+            },
         }
         self.tools.append(tool_def)
         self.tool_functions[name] = function
@@ -53,45 +92,45 @@ class ReActAgent:
             print(f"[Agent] 已注册工具: {name}")
 
     def remember(self, key: str, value: str):
+        """记住重要事实"""
         self.memory[key] = value
         if self.verbose:
             print(f"[Memory] 已记住: {key} = {value}")
 
     def recall(self, key: str = None):
+        """取出记忆"""
         if key:
             return self.memory.get(key, "")
         return self.memory.copy()
 
     def _extract_and_store_memory(self, goal: str, final_answer: str):
-        """自动从本次交互中提取关键事实并存入记忆"""
+        """自动提取关键事实并存入记忆"""
         if not self.client or not self.auto_memory:
             return
 
-        extract_prompt = f"""请从以下内容中提取1-3条最重要的关键事实（用简洁的 key-value 形式）：
+        prompt = f"""请从以下对话中提取1-3条最重要的关键事实，用简洁的 key: value 格式输出：
 
-用户问题：{goal}
-最终结论：{final_answer}
+用户问题: {goal}
+最终答案: {final_answer}
 
-请只输出事实，不要解释，例如：
-铁矿石趋势: 目前处于下降通道
-支撑位: 3720附近
-"""
+只输出事实，不要解释。"""
 
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": extract_prompt}],
+                messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
+                max_tokens=300,
             )
-            extracted = response.choices[0].message.content or ""
+            text = response.choices[0].message.content or ""
 
-            for line in extracted.strip().split("\n"):
+            for line in text.strip().split("\n"):
                 if ":" in line:
-                    key, value = line.split(":", 1)
-                    self.remember(key.strip(), value.strip())
+                    k, v = line.split(":", 1)
+                    self.remember(k.strip(), v.strip())
 
-            if self.verbose and self.memory:
-                print("[Auto Memory] 已自动提取并存储记忆")
+            if self.verbose and any(self.memory):
+                print(f"[Auto Memory] 已自动提取 {len(self.memory)} 条记忆")
 
         except Exception as e:
             if self.verbose:
@@ -108,6 +147,7 @@ class ReActAgent:
             return f"工具执行出错: {str(e)}"
 
     def run(self, goal: str) -> str:
+        # 注入记忆到 System Prompt
         memory_content = ""
         if self.memory:
             memory_content = "\n当前已知记忆：\n" + "\n".join(
@@ -119,11 +159,8 @@ class ReActAgent:
                 "role": "system",
                 "content": (
                     "你是一个严谨的 ReAct 助手（powered by Grok）。\n"
-                    "请严格遵循以下格式：\n"
-                    "1. 先在思考中分析当前情况（Thought）\n"
-                    "2. 如果需要信息，调用工具（Action）\n"
-                    "3. 只有当信息足够时，直接给出最终答案（Answer）\n"
-                    "不要在给出最终答案后继续调用工具。"
+                    "请严格遵循 ReAct 格式：Thought → Action → Observation → Answer。\n"
+                    "只有信息足够时才给出最终答案。"
                     f"{memory_content}"
                 ),
             },
@@ -155,7 +192,7 @@ class ReActAgent:
                 for tool_call in assistant_msg.tool_calls:
                     result = self._execute_tool(tool_call)
                     if self.verbose:
-                        print(f"工具返回: {result[:150]}{'...' if len(result) > 150 else ''}")
+                        print(f"工具返回: {result[:200]}...")
 
                     messages.append({
                         "role": "tool",
@@ -174,7 +211,7 @@ class ReActAgent:
                     print(f"\n✅ 最终答案:\n{final_answer}")
                 return final_answer
 
-        return "已达到最大步数限制，未能得到最终答案。"
+        return "达到最大步数限制"
 
     def chat(self, goal: str) -> str:
         return self.run(goal)
