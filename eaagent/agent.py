@@ -1,6 +1,6 @@
 """
 ReAct Agent - 基于 Grok (xAI) 的简洁 ReAct 实现
-支持自定义工具、自动工具调用循环 + 简单记忆（A计划）
+支持自定义工具、自动工具调用循环 + 简单记忆 + 自动记忆提取（A计划）
 """
 
 import os
@@ -22,11 +22,13 @@ class ReActAgent:
         max_steps: int = 15,
         verbose: bool = True,
         require_api_key: bool = True,
+        auto_memory: bool = False,
     ):
         self.model = model
         self.temperature = temperature
         self.max_steps = max_steps
         self.verbose = verbose
+        self.auto_memory = auto_memory
 
         if require_api_key:
             api_key = api_key or os.getenv("XAI_API_KEY")
@@ -60,6 +62,41 @@ class ReActAgent:
             return self.memory.get(key, "")
         return self.memory.copy()
 
+    def _extract_and_store_memory(self, goal: str, final_answer: str):
+        """自动从本次交互中提取关键事实并存入记忆"""
+        if not self.client or not self.auto_memory:
+            return
+
+        extract_prompt = f"""请从以下内容中提取1-3条最重要的关键事实（用简洁的 key-value 形式）：
+
+用户问题：{goal}
+最终结论：{final_answer}
+
+请只输出事实，不要解释，例如：
+铁矿石趋势: 目前处于下降通道
+支撑位: 3720附近
+"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": extract_prompt}],
+                temperature=0.3,
+            )
+            extracted = response.choices[0].message.content or ""
+
+            for line in extracted.strip().split("\n"):
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    self.remember(key.strip(), value.strip())
+
+            if self.verbose and self.memory:
+                print("[Auto Memory] 已自动提取并存储记忆")
+
+        except Exception as e:
+            if self.verbose:
+                print(f"[Auto Memory] 提取失败: {e}")
+
     def _execute_tool(self, tool_call):
         name = tool_call.function.name
         args = json.loads(tool_call.function.arguments or "{}")
@@ -70,7 +107,7 @@ class ReActAgent:
         except Exception as e:
             return f"工具执行出错: {str(e)}"
 
-    def run(self, goal: str):
+    def run(self, goal: str) -> str:
         memory_content = ""
         if self.memory:
             memory_content = "\n当前已知记忆：\n" + "\n".join(
@@ -112,8 +149,14 @@ class ReActAgent:
             messages.append(assistant_msg.model_dump())
 
             if assistant_msg.tool_calls:
+                if self.verbose:
+                    print(f"调用工具: {[tc.function.name for tc in assistant_msg.tool_calls]}")
+
                 for tool_call in assistant_msg.tool_calls:
                     result = self._execute_tool(tool_call)
+                    if self.verbose:
+                        print(f"工具返回: {result[:150]}{'...' if len(result) > 150 else ''}")
+
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
@@ -121,9 +164,17 @@ class ReActAgent:
                         "content": result,
                     })
             else:
-                return assistant_msg.content or ""
+                final_answer = assistant_msg.content or ""
 
-        return "达到最大步数限制"
+                # 自动记忆提取
+                if self.auto_memory:
+                    self._extract_and_store_memory(goal, final_answer)
 
-    def chat(self, goal: str):
+                if self.verbose:
+                    print(f"\n✅ 最终答案:\n{final_answer}")
+                return final_answer
+
+        return "已达到最大步数限制，未能得到最终答案。"
+
+    def chat(self, goal: str) -> str:
         return self.run(goal)
