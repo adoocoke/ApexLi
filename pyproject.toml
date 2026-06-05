@@ -18,6 +18,5 @@ dev = [
 [tool.black]
 line-length = 100
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+# 注意：已移除 hatchling 以避免 SSL 安装问题
+# 如需打包发布，可改用 setuptools 或 hatchling

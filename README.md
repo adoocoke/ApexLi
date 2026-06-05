@@ -56,19 +56,35 @@ XAI_API_KEY=xai-你的密钥
 python examples/basic_weather.py
 ```
 
+### 5. 运行测试
+
+```bash
+# 安装开发依赖（包含 pytest）
+pip install -e ".[dev]"
+
+# 运行所有测试
+pytest
+
+# 只运行 agent 测试
+pytest tests/test_agent.py -v
+```
+
 ## 📦 项目结构
 
 ```
 eaagent/
-├── eaagent/
+├── eaagent/                  # 核心代码
 │   ├── __init__.py
-│   ├── agent.py          # 核心 ReActAgent 类
+│   ├── agent.py
 │   └── tools/
-│       ├── __init__.py
-│       └── weather.py    # 示例工具
-├── examples/
+├── examples/                 # 使用示例
 │   └── basic_weather.py
+├── tests/                    # 单元测试
+│   ├── __init__.py
+│   └── test_agent.py
+├── pytest.ini
 ├── requirements.txt
+├── pyproject.toml
 ├── .gitignore
 └── README.md
 ```
