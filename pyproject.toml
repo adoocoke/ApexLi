@@ -14,9 +14,9 @@ dev = [
     "pytest>=8.0.0",
     "black>=24.0.0",
 ]
+tushare = [
+    "tushare>=1.2.89",
+]
 
 [tool.black]
 line-length = 100
-
-# 注意：已移除 hatchling 以避免 SSL 安装问题
-# 如需打包发布，可改用 setuptools 或 hatchling
