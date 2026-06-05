@@ -19,31 +19,30 @@ def test_extract_and_store_memory_exists():
 
 @patch('eaagent.agent.OpenAI')
 def test_auto_memory_extraction_flow(mock_openai_class):
-    # 1. 创建 mock 的 client 实例
-    mock_client_instance = MagicMock()
+    """测试自动记忆提取流程"""
+    # Mock OpenAI client
+    mock_client = MagicMock()
     mock_response = MagicMock()
-    mock_response.choices[0].message.content = "铁矿石趋势: 目前处于下降通道"
-    mock_client_instance.chat.completions.create.return_value = mock_response
+    mock_response.choices[0].message.content = "铁矿石趋势: 目前处于下降通道\n支撑位: 3720附近"
+    mock_client.chat.completions.create.return_value = mock_response
+    mock_openai_class.return_value = mock_client
 
-    # 2. 当 ReActAgent 内部 new OpenAI() 时，返回我们的 mock 实例
-    mock_openai_class.return_value = mock_client_instance
-
-    # 3. 这里必须用 require_api_key=True（让它正常初始化 client）
+    # 使用 require_api_key=True，让它正常创建 client
     agent = ReActAgent(
         verbose=False,
         require_api_key=True,
         auto_memory=True
     )
 
-    # 4. 调用提取方法
+    # 执行提取
     agent._extract_and_store_memory(
         goal="铁矿石现在怎么样？",
-        final_answer="铁矿石目前处于下降通道。"
+        final_answer="铁矿石目前处于下降通道，建议关注3720支撑位。"
     )
 
-    # 5. 验证模型被调用了
-    assert mock_client_instance.chat.completions.create.called
+    # 验证模型被调用了
+    assert mock_client.chat.completions.create.called, "模型应该被调用来进行记忆提取"
 
-    # 6. 验证记忆被存入
+    # 验证有记忆被存入
     memory = agent.recall()
     assert len(memory) > 0
