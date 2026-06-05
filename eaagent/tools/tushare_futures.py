@@ -1,11 +1,11 @@
 """
-Tushare 期货数据工具
-需要先安装: pip install tushare
-并设置环境变量 TUSHARE_TOKEN
+Tushare 期货数据工具（A计划 - 20260605）
+优化返回格式，使其更适合 ReAct Agent 进行推理
 """
 
 import os
 from typing import Optional
+from datetime import datetime
 import pandas as pd
 
 try:
@@ -15,20 +15,60 @@ except ImportError:
 
 
 def _get_pro_api():
-    """获取 Tushare Pro API 实例"""
     if ts is None:
         raise ImportError("请先安装 tushare: pip install tushare")
 
     token = os.getenv("TUSHARE_TOKEN")
     if not token:
-        raise ValueError(
-            "未找到 TUSHARE_TOKEN 环境变量。\n"
-            "请先去 https://tushare.pro 注册并获取 token，"
-            "然后设置环境变量：export TUSHARE_TOKEN=你的token"
-        )
+        raise ValueError("未找到 TUSHARE_TOKEN 环境变量，请先设置")
 
     ts.set_token(token)
     return ts.pro_api()
+
+
+def _format_futures_summary(df: pd.DataFrame, ts_code: str) -> str:
+    """将 DataFrame 格式化为适合 Agent 使用的简洁摘要"""
+    if df.empty:
+        return f"未查询到 {ts_code} 的数据"
+
+    df = df.sort_values("trade_date")
+    latest = df.iloc[-1]
+    prev = df.iloc[-2] if len(df) > 1 else None
+
+    # 计算涨跌
+    if prev is not None:
+        change = latest["close"] - prev["close"]
+        change_str = f"{change:+.2f}"
+    else:
+        change_str = "--"
+
+    # 基础统计
+    high = df["high"].max()
+    low = df["low"].min()
+    avg_vol = df["vol"].mean()
+
+    # 最近数据（最多显示 6 条）
+    recent = df.tail(6)
+
+    lines = [
+        f"【{ts_code}】查询区间: {df['trade_date'].iloc[0]} ~ {df['trade_date'].iloc[-1]}",
+        f"最新收盘: {latest['close']:.2f} ({change_str})",
+        f"区间最高: {high:.2f} / 最低: {low:.2f}",
+        f"平均成交量: {int(avg_vol):,} 手",
+        "",
+        "最近交易日数据："
+    ]
+
+    for _, row in recent.iterrows():
+        lines.append(
+            f"{row['trade_date']} | "
+            f"收:{row['close']:.2f} | "
+            f"涨跌:{row['close'] - prev['close'] if prev is not None else '--':+.2f} | "
+            f"持仓:{int(row['oi']):,}"
+        )
+        prev = row  # 更新 prev 用于下一行计算
+
+    return "\n".join(lines)
 
 
 def get_futures_daily(
@@ -37,20 +77,14 @@ def get_futures_daily(
     end_date: Optional[str] = None,
 ) -> str:
     """
-    获取期货日线数据（使用 Tushare Pro）
-
-    Args:
-        ts_code: 期货代码，例如 "RB2405.SHF" 或 "I2409.DCE"
-        start_date: 开始日期，格式 YYYYMMDD，例如 "20240101"
-        end_date: 结束日期，格式 YYYYMMDD，默认为今天
+    获取期货日线数据并返回结构化摘要（优化版）
 
     Returns:
-        格式化的日线数据字符串
+        适合 Agent 推理的简洁格式字符串
     """
     pro = _get_pro_api()
 
     if end_date is None:
-        from datetime import datetime
         end_date = datetime.now().strftime("%Y%m%d")
 
     try:
@@ -64,43 +98,7 @@ def get_futures_daily(
         if df.empty:
             return f"未查询到 {ts_code} 在 {start_date} 到 {end_date} 的数据"
 
-        # 按日期排序
-        df = df.sort_values("trade_date")
-
-        # 取最近 10 条展示
-        recent = df.tail(10)
-
-        result = f"【{ts_code} 日线数据】最近 {len(recent)} 条记录：\n"
-        for _, row in recent.iterrows():
-            result += (
-                f"{row['trade_date']} | "
-                f"开:{row['open']:.2f} 高:{row['high']:.2f} "
-                f"低:{row['low']:.2f} 收:{row['close']:.2f} "
-                f"持仓:{int(row['oi'])} 成交:{int(row['vol'])}\n"
-            )
-
-        return result.strip()
+        return _format_futures_summary(df, ts_code)
 
     except Exception as e:
-        return f"查询 Tushare 数据失败: {str(e)}"
-
-
-# 便捷函数：支持简单品种代码（如 RB、I、MA）
-def get_futures_daily_simple(
-    symbol: str,
-    start_date: str,
-    end_date: Optional[str] = None,
-    exchange: str = "SHF"
-) -> str:
-    """
-    简化版获取期货日线（自动补全 ts_code）
-
-    Args:
-        symbol: 品种代码，如 "RB", "I", "MA", "CU"
-        start_date: 开始日期 YYYYMMDD
-        end_date: 结束日期 YYYYMMDD
-        exchange: 交易所代码，默认 SHF（上期所），可选 DCE, CZCE, INE
-    """
-    # 简单映射常见主力合约（实际使用建议传入具体合约如 RB2405.SHF）
-    ts_code = f"{symbol}2405.{exchange}"  # 这里简化处理，实际应动态获取主力合约
-    return get_futures_daily(ts_code, start_date, end_date)
+        return f"Tushare 查询失败: {str(e)}"
