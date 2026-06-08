@@ -1,5 +1,13 @@
 from typing import TypedDict, List, Optional, Dict, Any
-from langchain_core.messages import BaseMessage
+
+# 尝试导入 langchain_core，如果没有安装则使用占位类型
+try:
+    from langchain_core.messages import BaseMessage
+    HAS_LANGCHAIN = True
+except ImportError:
+    BaseMessage = dict  # 占位类型
+    HAS_LANGCHAIN = False
+
 
 class APlusPlusState(TypedDict):
     """扩展的状态定义，继承 eaagent 基础状态 + A++ 特有字段"""
@@ -8,21 +16,21 @@ class APlusPlusState(TypedDict):
     messages: List[BaseMessage]
 
     # === Playbook 相关 ===
-    playbook_rules: Optional[Dict[str, Any]]          # 加载后的结构化 Playbook
-    rag_context: Optional[str]                        # RAG 检索到的相关规则片段
+    playbook_rules: Optional[Dict[str, Any]]
+    rag_context: Optional[str]
 
     # === 当前交易状态 ===
-    current_position: Optional[Dict[str, Any]]        # 当前持仓信息
-    current_symbol: Optional[str]                     # 当前分析的品种
-    current_timeframe: Optional[str]                  # 当前分析的时间框架
+    current_position: Optional[Dict[str, Any]]
+    current_symbol: Optional[str]
+    current_timeframe: Optional[str]
 
     # === 反馈与成长（AIFED） ===
-    feedback_log: List[Dict[str, Any]]                # 人类反馈历史
-    reflection_notes: Optional[str]                   # Reflection Node 的自我批评
+    feedback_log: List[Dict[str, Any]]
+    reflection_notes: Optional[str]
 
     # === 执行控制 ===
-    next_action: Optional[str]                        # 下一个建议动作（用于 human-in-the-loop）
-    interrupt_reason: Optional[str]                   # 中断原因（如果需要人类确认）
+    next_action: Optional[str]
+    interrupt_reason: Optional[str]
 
 
 def create_initial_state() -> APlusPlusState:
