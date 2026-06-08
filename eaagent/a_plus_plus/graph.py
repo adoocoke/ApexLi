@@ -1,24 +1,33 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, Any
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
 from .state import APlusPlusState, create_initial_state
 from .eaagent_wrapper import APlusPlusReActAgent
 from .prompt_builder import PlaybookPromptBuilder
+from .tools import get_latest_observation
 
 
 def get_ea_agent() -> APlusPlusReActAgent:
-    """延迟初始化，避免模块级报错"""
     agent = APlusPlusReActAgent()
     agent.load_playbook()
     return agent
 
 
+def _get_message_content(msg: Any) -> str:
+    """兼容 dict 和 BaseMessage"""
+    if isinstance(msg, dict):
+        return msg.get("content", "")
+    else:
+        return getattr(msg, "content", "")
+
+
 def ea_reasoning_node(state: APlusPlusState) -> APlusPlusState:
     """核心推理节点"""
-    goal = state.get("messages", [])[-1].content if state.get("messages") else ""
-    rag_context = state.get("rag_context")
+    messages = state.get("messages", [])
+    goal = _get_message_content(messages[-1]) if messages else ""
 
+    rag_context = state.get("rag_context")
     playbook_builder = PlaybookPromptBuilder()
     enhanced_prompt = playbook_builder.build_system_prompt(rag_context=rag_context)
     full_goal = f"{enhanced_prompt}\n\n当前任务：{goal}"
@@ -32,16 +41,28 @@ def ea_reasoning_node(state: APlusPlusState) -> APlusPlusState:
 
 
 def tools_node(state: APlusPlusState) -> APlusPlusState:
-    """工具调用节点（占位，后续扩展）"""
-    state["messages"].append({"role": "system", "content": "[工具节点] 已执行工具调用"})
+    """真实工具节点"""
+    symbol = state.get("current_symbol", "RB2601")
+    period = state.get("current_timeframe", "D")
+
+    try:
+        observation = get_latest_observation(symbol=symbol, period=period)
+    except Exception as e:
+        observation = f"获取 {symbol} 数据失败: {str(e)}"
+
+    state["messages"].append({
+        "role": "system",
+        "content": f"【工具返回的 Observation】\n{observation}"
+    })
     state["next_action"] = "reflection"
     return state
 
 
 def reflection_node(state: APlusPlusState) -> APlusPlusState:
     """自我反思节点"""
-    last_response = state["messages"][-1]["content"] if state.get("messages") else ""
-    reflection = f"【自我反思】上一步输出：{last_response[:200]}...\n需要检查是否符合 Playbook 风格。"
+    messages = state.get("messages", [])
+    last_content = _get_message_content(messages[-1]) if messages else ""
+    reflection = f"【自我反思】上一步输出：{last_content[:300]}...\n需检查是否符合 Playbook 量仓逻辑与定式。"
     state["reflection_notes"] = reflection
     state["messages"].append({"role": "system", "content": reflection})
     state["next_action"] = "human_feedback"
@@ -49,7 +70,6 @@ def reflection_node(state: APlusPlusState) -> APlusPlusState:
 
 
 def human_feedback_node(state: APlusPlusState) -> APlusPlusState:
-    """人类反馈节点"""
     state["interrupt_reason"] = "等待人类反馈确认或修正建议"
     return state
 
@@ -65,7 +85,6 @@ def should_continue(state: APlusPlusState) -> Literal["tools", "reflection", "en
 
 
 def build_graph():
-    """构建 A++ LangGraph 工作流"""
     workflow = StateGraph(APlusPlusState)
 
     workflow.add_node("ea_reasoning", ea_reasoning_node)
@@ -96,7 +115,10 @@ def build_graph():
 
 if __name__ == "__main__":
     app = build_graph()
-    initial_state = create_initial_state()
-    initial_state["messages"] = [{"role": "user", "content": "请分析当前铁矿走势"}]
-    result = app.invoke(initial_state)
+    state = create_initial_state()
+    state["current_symbol"] = "RB2601"
+    state["messages"] = [{"role": "user", "content": "请分析当前螺纹钢走势"}]
+
+    config = {"configurable": {"thread_id": "test-001"}}
+    result = app.invoke(state, config)
     print(result["messages"][-1])
