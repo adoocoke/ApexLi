@@ -4,3 +4,13 @@ pydantic>=2.0.0   # optional, for future structured output
 
 # 期货数据（可选）
 # tushare>=1.2.89   # 需要 TUSHARE_TOKEN 环境变量
+# === A++ 模块新增依赖 ===
+langchain_core>=0.3.0
+langgraph>=0.2.0
+pydantic>=2.0.0
+
+# === 原有 eaagent 依赖（如果你还没有的话） ===
+# openai
+# tushare
+# pandas
+# python-dotenv
