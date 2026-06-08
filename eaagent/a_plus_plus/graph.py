@@ -20,6 +20,58 @@ def _get_message_content(msg: Any) -> str:
     return getattr(msg, "content", "")
 
 
+def tools_node(state: APlusPlusState) -> APlusPlusState:
+    """
+    多时间框架工具节点（支持优雅降级）
+    - 优先获取日线（必须）
+    - 尝试获取30分钟（可选，失败则降级）
+    """
+    symbol = state.get("current_symbol", "RB2605")
+
+    # 1. 获取日线（核心数据）
+    daily_obs = get_structured_observation(symbol, period="D")
+
+    # 2. 尝试获取30分钟（可选）
+    try:
+        min30_obs = get_structured_observation(symbol, period="30")
+        min30_text = min30_obs.get('observation_text', '')
+        min30_available = True
+    except Exception as e:
+        min30_text = f"【30分钟数据获取失败】{str(e)[:80]}"
+        min30_available = False
+
+    # 3. 组合 Observation
+    if min30_available:
+        combined = f"""【日线观察 - 大趋势】
+{daily_obs.get('observation_text', '')}
+
+【30分钟观察 - 结构与入场】
+{min30_text}
+"""
+    else:
+        combined = f"""【日线观察 - 大趋势】
+{daily_obs.get('observation_text', '')}
+
+【30分钟观察】
+{min30_text}
+（系统已自动降级，仅使用日线数据进行分析）
+"""
+
+    state["messages"].append({
+        "role": "system",
+        "content": f"【工具返回的多时间框架 Observation】\n{combined}"
+    })
+
+    state["last_observation"] = {
+        "daily": daily_obs,
+        "30min": min30_obs if min30_available else None,
+        "30min_available": min30_available
+    }
+
+    state["next_action"] = "ea_reasoning"
+    return state
+
+
 def ea_reasoning_node(state: APlusPlusState) -> APlusPlusState:
     messages = state.get("messages", [])
     goal = _get_message_content(messages[-1]) if messages else ""
@@ -33,33 +85,37 @@ def ea_reasoning_node(state: APlusPlusState) -> APlusPlusState:
     result = ea_agent.run(full_goal)
 
     state["messages"].append({"role": "assistant", "content": result})
-    state["next_action"] = "tool" if "Action" in result else "end"
-    return state
-
-
-def tools_node(state: APlusPlusState) -> APlusPlusState:
-    symbol = state.get("current_symbol", "RB2605")   # 默认使用更稳定的合约
-    period = state.get("current_timeframe", "D")
-
-    try:
-        obs = get_structured_observation(symbol=symbol, period=period)
-        observation_text = obs.get("observation_text", str(obs))
-    except Exception as e:
-        observation_text = f"获取 {symbol} 结构化数据失败: {str(e)}"
-
-    state["messages"].append({
-        "role": "system",
-        "content": f"【工具返回的结构化 Observation】\n{observation_text}"
-    })
-    state["last_observation"] = obs if 'obs' in locals() else {"status": "error"}
     state["next_action"] = "reflection"
     return state
 
 
 def reflection_node(state: APlusPlusState) -> APlusPlusState:
     messages = state.get("messages", [])
-    last_content = _get_message_content(messages[-1]) if messages else ""
-    reflection = f"【自我反思】上一步输出：{last_content[:400]}...\n需检查是否符合 Playbook 中的量仓逻辑、定式与风险控制。"
+    last_assistant_msg = ""
+    for msg in reversed(messages):
+        if msg.get("role") == "assistant":
+            last_assistant_msg = msg.get("content", "")
+            break
+
+    reflection_parts = ["【自我反思】"]
+
+    last_obs = state.get("last_observation", {})
+    if last_obs.get("30min_available") is False:
+        reflection_parts.append("⚠️ 30分钟数据获取失败，已自动降级为仅使用日线分析。")
+    elif "日线观察" in last_assistant_msg and "30分钟观察" in last_assistant_msg:
+        reflection_parts.append("✅ 成功结合日线趋势 + 30分钟结构进行分析。")
+
+    if any(kw in last_assistant_msg for kw in ["量仓", "持仓量", "成交量变化"]):
+        reflection_parts.append("✅ 关注了量仓变化，符合 Playbook 核心逻辑。")
+    else:
+        reflection_parts.append("⚠️ 建议加入量仓变化的观察。")
+
+    if any(kw in last_assistant_msg for kw in ["主动放弃", "暂不", "保持观望", "信息不足"]):
+        reflection_parts.append("✅ 体现了信息不足时主动放弃/观望的意识。")
+
+    reflection = "\n".join(reflection_parts)
+    reflection += "\n\n建议：继续保持多时间框架分析 + 量仓逻辑的风格。"
+
     state["reflection_notes"] = reflection
     state["messages"].append({"role": "system", "content": reflection})
     state["next_action"] = "human_feedback"
@@ -71,10 +127,10 @@ def human_feedback_node(state: APlusPlusState) -> APlusPlusState:
     return state
 
 
-def should_continue(state: APlusPlusState) -> Literal["tools", "reflection", "end"]:
+def should_continue(state: APlusPlusState) -> Literal["ea_reasoning", "reflection", "end"]:
     next_action = state.get("next_action", "end")
-    if next_action == "tool":
-        return "tools"
+    if next_action == "ea_reasoning":
+        return "ea_reasoning"
     elif next_action == "reflection":
         return "reflection"
     else:
@@ -84,24 +140,24 @@ def should_continue(state: APlusPlusState) -> Literal["tools", "reflection", "en
 def build_graph():
     workflow = StateGraph(APlusPlusState)
 
-    workflow.add_node("ea_reasoning", ea_reasoning_node)
     workflow.add_node("tools", tools_node)
+    workflow.add_node("ea_reasoning", ea_reasoning_node)
     workflow.add_node("reflection", reflection_node)
     workflow.add_node("human_feedback", human_feedback_node)
 
-    workflow.set_entry_point("ea_reasoning")
+    workflow.set_entry_point("tools")
 
     workflow.add_conditional_edges(
-        "ea_reasoning",
+        "tools",
         should_continue,
         {
-            "tools": "tools",
+            "ea_reasoning": "ea_reasoning",
             "reflection": "reflection",
             "end": END,
         }
     )
 
-    workflow.add_edge("tools", "reflection")
+    workflow.add_edge("ea_reasoning", "reflection")
     workflow.add_edge("reflection", "human_feedback")
     workflow.add_edge("human_feedback", END)
 
