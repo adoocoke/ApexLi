@@ -14,7 +14,7 @@ USE_MOCK_DATA = os.getenv("USE_MOCK_OBSERVATION", "false").lower() == "true"
 
 # ==================== 内存缓存 ====================
 _observation_cache: Dict[str, Dict[str, Any]] = {}
-CACHE_TTL = 60
+CACHE_TTL = 90  # 缓存时间（秒），30分钟数据建议缓存久一点
 
 
 def _get_cache_key(symbol: str, period: str, lookback: int) -> str:
@@ -41,22 +41,21 @@ def _save_to_cache(key: str, data: Dict[str, Any]):
 # ==================== Mock 数据 ====================
 
 def _get_mock_observation(symbol: str) -> Dict[str, Any]:
-    """生成模拟 Observation（用于开发测试）"""
     mock_data = {
         "RB2605": {
             "latest_price": 3150.0, "price_change": 12.0, "price_change_pct": 0.38,
             "volume_change": 1240, "oi_change": -380, "volume_change_pct": 18.5,
-            "atr": 38.2, "ma20": 3128.5, "recent_high": 3295.0, "recent_low": 3065.0
+            "atr": 38.2, "ma20": 3128.5, "recent_high": 3295.0, "recent_low": 3065.0,
         },
         "RB2609": {
             "latest_price": 3142.0, "price_change": -8.0, "price_change_pct": -0.25,
             "volume_change": -5320, "oi_change": 1850, "volume_change_pct": -9.2,
-            "atr": 29.8, "ma20": 3165.3, "recent_high": 3278.0, "recent_low": 3115.0
+            "atr": 29.8, "ma20": 3165.3, "recent_high": 3278.0, "recent_low": 3115.0,
         },
         "I2609": {
             "latest_price": 785.5, "price_change": 6.5, "price_change_pct": 0.83,
             "volume_change": 890, "oi_change": 420, "volume_change_pct": 12.4,
-            "atr": 12.8, "ma20": 772.3, "recent_high": 812.0, "recent_low": 745.0
+            "atr": 12.8, "ma20": 772.3, "recent_high": 812.0, "recent_low": 745.0,
         }
     }
 
@@ -81,12 +80,15 @@ def _get_mock_observation(symbol: str) -> Dict[str, Any]:
         },
         "atr": data['atr'],
         "ma20": data['ma20'],
-        "key_levels": {"recent_high": data['recent_high'], "recent_low": data['recent_low']},
+        "key_levels": {
+            "recent_high": data['recent_high'],
+            "recent_low": data['recent_low']
+        },
         "observation_text": text.strip()
     }
 
 
-# ==================== 真实 Tushare 接口 ====================
+# ==================== Tushare 真实接口（重点支持日线 + 30分钟） ====================
 
 def get_pro_api():
     token = os.getenv("TUSHARE_TOKEN")
@@ -98,12 +100,15 @@ def get_pro_api():
 
 def get_futures_klines(
     symbol: str,
-    period: Literal["D", "60", "30", "15", "5"] = "D",
+    period: Literal["D", "30"] = "D",   # 目前重点支持 日线 和 30分钟
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     limit: int = 300,
     max_retry: int = 2
 ) -> pd.DataFrame:
+    """
+    获取期货K线数据（当前重点支持日线和30分钟）
+    """
     ts_code = symbol.upper().strip()
     if "." not in ts_code:
         ts_code = f"{ts_code}.SHF"
@@ -113,89 +118,40 @@ def get_futures_klines(
             pro = get_pro_api()
 
             if period == "D":
-                try:
-                    df = pro.fut_daily(ts_code=ts_code, start_date=start_date, end_date=end_date, limit=limit)
-                    if df is not None and not df.empty:
-                        return df.sort_values("trade_date").reset_index(drop=True)
-                except Exception as e:
-                    if "接口名" in str(e):
-                        pass  # fallback to pro_bar
-                    else:
-                        raise e
-
-            freq = period if period == "D" else f"{period}min"
-            df = ts.pro_bar(ts_code=ts_code, asset="FT", start_date=start_date, end_date=end_date, freq=freq)
+                # 日线优先使用 fut_daily（更稳定）
+                df = pro.fut_daily(
+                    ts_code=ts_code,
+                    start_date=start_date,
+                    end_date=end_date,
+                    limit=limit
+                )
+            else:
+                # 30分钟
+                df = pro.fut_min(
+                    ts_code=ts_code,
+                    freq="30min",
+                    start_date=start_date,
+                    end_date=end_date,
+                    limit=limit
+                )
 
             if df is not None and not df.empty:
                 return df.sort_values("trade_date").reset_index(drop=True)
 
         except Exception as e:
             err_msg = str(e)
-            print(f"[尝试 {attempt+1}] 获取 {ts_code} 失败: {err_msg[:120]}")
+            print(f"[尝试 {attempt+1}] 获取 {ts_code} ({period}) 失败: {err_msg[:120]}")
+
             if "频率超限" in err_msg:
-                print("检测到频率限制，暂停 75 秒...")
+                print("检测到频率限制，暂停较长时间...")
                 time.sleep(75)
             elif attempt < max_retry:
-                time.sleep(3)
+                time.sleep(4)
 
     return pd.DataFrame()
 
 
-# ==================== 结构化 Observation ====================
-
-def get_structured_observation(symbol: str, period: str = "D", lookback: int = 20) -> Dict[str, Any]:
-    # Mock 模式优先
-    if USE_MOCK_DATA:
-        return _get_mock_observation(symbol)
-
-    cache_key = _get_cache_key(symbol, period, lookback)
-    cached = _get_from_cache(cache_key)
-    if cached is not None:
-        print(f"[Cache Hit] 使用缓存数据: {symbol}")
-        return cached
-
-    df = get_futures_klines(symbol=symbol, period=period, limit=lookback + 5)
-
-    if df.empty:
-        result = {
-            "symbol": symbol,
-            "status": "error",
-            "observation_text": f"【{symbol}】无法获取数据，请检查合约代码或 Tushare 权限。"
-        }
-        _save_to_cache(cache_key, result)
-        return result
-
-    vol_oi = calculate_volume_oi_change(df)
-    atr = calculate_atr(df)
-    ma20 = calculate_ma(df, 20)
-    key_levels = detect_key_levels(df)
-    latest = df.iloc[-1]
-    prev = df.iloc[-2] if len(df) > 1 else latest
-
-    price_chg = round(latest["close"] - prev["close"], 2)
-    price_pct = round(price_chg / prev["close"] * 100, 2) if prev["close"] > 0 else 0
-
-    text = f"""【{symbol} 结构化观察】
-- 最新收盘: {latest['close']} | 价格变化: {price_chg:+.2f} ({price_pct:+.2f}%)
-- {vol_oi['summary']}
-- ATR: {atr} | MA20: {ma20}
-- 近期关键位: 高 {key_levels['recent_high']}, 低 {key_levels['recent_low']}"""
-
-    result = {
-        "symbol": symbol,
-        "status": "success",
-        "latest_price": latest["close"],
-        "price_change": price_chg,
-        "volume_oi": vol_oi,
-        "atr": atr,
-        "ma20": ma20,
-        "key_levels": key_levels,
-        "observation_text": text.strip()
-    }
-
-    _save_to_cache(cache_key, result)
-    return result
-
+# ==================== 技术指标 ====================
 
 def calculate_atr(df: pd.DataFrame, period: int = 14) -> Optional[float]:
     if df.empty or len(df) < period + 1:
@@ -238,6 +194,67 @@ def detect_key_levels(df: pd.DataFrame, lookback: int = 20) -> Dict[str, Any]:
     }
 
 
-def get_latest_observation(symbol: str, period: str = "D", lookback: int = 5) -> str:
+# ==================== 结构化 Observation ====================
+
+def get_structured_observation(
+    symbol: str,
+    period: Literal["D", "30"] = "D",
+    lookback: int = 20
+) -> Dict[str, Any]:
+    # Mock 模式
+    if USE_MOCK_DATA:
+        return _get_mock_observation(symbol)
+
+    cache_key = _get_cache_key(symbol, period, lookback)
+    cached = _get_from_cache(cache_key)
+    if cached is not None:
+        print(f"[Cache Hit] 使用缓存数据: {symbol} ({period})")
+        return cached
+
+    df = get_futures_klines(symbol=symbol, period=period, limit=lookback + 5)
+
+    if df.empty:
+        result = {
+            "symbol": symbol,
+            "status": "error",
+            "observation_text": f"【{symbol}】无法获取 {period} 数据，请检查合约或 Tushare 权限。"
+        }
+        _save_to_cache(cache_key, result)
+        return result
+
+    vol_oi = calculate_volume_oi_change(df)
+    atr = calculate_atr(df)
+    ma20 = calculate_ma(df, 20)
+    key_levels = detect_key_levels(df)
+    latest = df.iloc[-1]
+    prev = df.iloc[-2] if len(df) > 1 else latest
+
+    price_chg = round(latest["close"] - prev["close"], 2)
+    price_pct = round(price_chg / prev["close"] * 100, 2) if prev["close"] > 0 else 0
+
+    text = f"""【{symbol} {period} 结构化观察】
+- 最新收盘: {latest['close']} | 价格变化: {price_chg:+.2f} ({price_pct:+.2f}%)
+- {vol_oi['summary']}
+- ATR: {atr} | MA20: {ma20}
+- 近期关键位: 高 {key_levels['recent_high']}, 低 {key_levels['recent_low']}"""
+
+    result = {
+        "symbol": symbol,
+        "status": "success",
+        "period": period,
+        "latest_price": latest["close"],
+        "price_change": price_chg,
+        "volume_oi": vol_oi,
+        "atr": atr,
+        "ma20": ma20,
+        "key_levels": key_levels,
+        "observation_text": text.strip()
+    }
+
+    _save_to_cache(cache_key, result)
+    return result
+
+
+def get_latest_observation(symbol: str, period: Literal["D", "30"] = "D", lookback: int = 5) -> str:
     result = get_structured_observation(symbol, period, lookback)
     return result.get("observation_text", "获取失败")
