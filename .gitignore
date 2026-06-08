@@ -151,3 +151,5 @@ Thumbs.db
 output/eaagent_memory.db
 eaagent_memory.db
 .gradio/
+artifacts/
+*.md
