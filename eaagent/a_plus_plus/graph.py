@@ -1,11 +1,11 @@
-from typing import Literal, Optional, Any
+from typing import Literal, Any
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
 from .state import APlusPlusState, create_initial_state
 from .eaagent_wrapper import APlusPlusReActAgent
 from .prompt_builder import PlaybookPromptBuilder
-from .tools import get_latest_observation
+from .tools import get_structured_observation
 
 
 def get_ea_agent() -> APlusPlusReActAgent:
@@ -15,15 +15,12 @@ def get_ea_agent() -> APlusPlusReActAgent:
 
 
 def _get_message_content(msg: Any) -> str:
-    """兼容 dict 和 BaseMessage"""
     if isinstance(msg, dict):
         return msg.get("content", "")
-    else:
-        return getattr(msg, "content", "")
+    return getattr(msg, "content", "")
 
 
 def ea_reasoning_node(state: APlusPlusState) -> APlusPlusState:
-    """核心推理节点"""
     messages = state.get("messages", [])
     goal = _get_message_content(messages[-1]) if messages else ""
 
@@ -41,28 +38,28 @@ def ea_reasoning_node(state: APlusPlusState) -> APlusPlusState:
 
 
 def tools_node(state: APlusPlusState) -> APlusPlusState:
-    """真实工具节点"""
-    symbol = state.get("current_symbol", "RB2601")
+    symbol = state.get("current_symbol", "RB2605")   # 默认使用更稳定的合约
     period = state.get("current_timeframe", "D")
 
     try:
-        observation = get_latest_observation(symbol=symbol, period=period)
+        obs = get_structured_observation(symbol=symbol, period=period)
+        observation_text = obs.get("observation_text", str(obs))
     except Exception as e:
-        observation = f"获取 {symbol} 数据失败: {str(e)}"
+        observation_text = f"获取 {symbol} 结构化数据失败: {str(e)}"
 
     state["messages"].append({
         "role": "system",
-        "content": f"【工具返回的 Observation】\n{observation}"
+        "content": f"【工具返回的结构化 Observation】\n{observation_text}"
     })
+    state["last_observation"] = obs if 'obs' in locals() else {"status": "error"}
     state["next_action"] = "reflection"
     return state
 
 
 def reflection_node(state: APlusPlusState) -> APlusPlusState:
-    """自我反思节点"""
     messages = state.get("messages", [])
     last_content = _get_message_content(messages[-1]) if messages else ""
-    reflection = f"【自我反思】上一步输出：{last_content[:300]}...\n需检查是否符合 Playbook 量仓逻辑与定式。"
+    reflection = f"【自我反思】上一步输出：{last_content[:400]}...\n需检查是否符合 Playbook 中的量仓逻辑、定式与风险控制。"
     state["reflection_notes"] = reflection
     state["messages"].append({"role": "system", "content": reflection})
     state["next_action"] = "human_feedback"
@@ -116,7 +113,7 @@ def build_graph():
 if __name__ == "__main__":
     app = build_graph()
     state = create_initial_state()
-    state["current_symbol"] = "RB2601"
+    state["current_symbol"] = "RB2605"
     state["messages"] = [{"role": "user", "content": "请分析当前螺纹钢走势"}]
 
     config = {"configurable": {"thread_id": "test-001"}}
