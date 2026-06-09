@@ -89,38 +89,46 @@ def reflection_node(state: APlusPlusState) -> APlusPlusState:
     last_obs = state.get("last_observation", {})
     min30_available = last_obs.get("30min_available", True)
 
-    # === 结构化反思 ===
     strengths = []
     issues = []
     suggestions = []
 
-    # 多时间框架检查
+    # === 原有规则检查 ===
     if "日线观察" in last_assistant_msg and "30分钟观察" in last_assistant_msg:
         strengths.append("成功结合日线趋势与30分钟结构进行分析")
-    elif min30_available is False:
+    elif not min30_available:
         issues.append("30分钟数据缺失，分析维度不够完整")
-    else:
-        issues.append("未充分结合日线和30分钟两个周期的数据")
 
-    # 量仓逻辑检查
     if any(kw in last_assistant_msg for kw in ["量仓", "持仓量", "成交量变化"]):
         strengths.append("关注了量仓变化，符合 Playbook 核心逻辑")
     else:
         issues.append("未明确分析量仓变化")
 
-    # 主动放弃 / 信息不足检查
     if any(kw in last_assistant_msg for kw in ["主动放弃", "暂不", "保持观望", "信息不足"]):
         strengths.append("体现了信息不足时主动放弃/观望的意识")
     else:
-        issues.append("在低置信度情况下仍给出较强判断，风险较高")
+        issues.append("在低置信度情况下仍给出较强判断")
 
-    # 风险控制检查
     if any(kw in last_assistant_msg for kw in ["止损", "风险", "仓位", "轻仓"]):
         strengths.append("具备一定的风险控制意识")
     else:
         issues.append("未提及止损或仓位管理，风险控制不足")
 
-    # 生成结构化反思
+    # === 新增：关键位使用检查 ===
+    if any(kw in last_assistant_msg for kw in ["支撑位", "压力位", "关键位", "支撑", "压力"]):
+        strengths.append("在分析中使用了支撑位或压力位")
+    else:
+        issues.append("未在分析中明确引用支撑位或压力位")
+        suggestions.append("建议在后续分析中主动结合关键位进行判断")
+
+    # === 新增：绘图工具使用检查 ===
+    if "generate_kline_chart" in last_assistant_msg or "K线图" in last_assistant_msg or "生成图" in last_assistant_msg:
+        strengths.append("考虑或调用了K线图生成工具辅助分析")
+    else:
+        if any(kw in last_assistant_msg for kw in ["支撑位", "压力位", "关键位"]):
+            suggestions.append("当分析关键位时，可以考虑调用 generate_kline_chart 生成可视化图表")
+
+    # === 生成结构化反思 ===
     reflection = "【自我反思】\n\n"
 
     if strengths:
@@ -130,8 +138,7 @@ def reflection_node(state: APlusPlusState) -> APlusPlusState:
     if suggestions:
         reflection += "💡 **改进建议**：\n" + "\n".join([f"  - {s}" for s in suggestions]) + "\n\n"
 
-    # 简单置信度评分（可后续优化为更智能的打分）
-    confidence = 7 if len(strengths) >= 2 and len(issues) <= 1 else 5
+    confidence = 7 if len(strengths) >= 3 and len(issues) <= 2 else 5
     reflection += f"📊 **置信度评分**：{confidence}/10\n"
 
     state["reflection_notes"] = reflection

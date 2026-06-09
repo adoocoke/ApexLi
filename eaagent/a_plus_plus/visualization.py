@@ -16,8 +16,9 @@ def plot_kline_with_levels(
     save_dir: str = "artifacts/charts"
 ) -> str:
     """
-    K线图（深灰背景 + 红色上涨 + 浅蓝色下跌）
-    + MA20 + 射线式支撑压力位
+    绘制K线图 + MA20 + 射线式支撑压力位
+    - 支撑位：红色虚线（从实际位置向右延长）
+    - 压力位：绿色虚线（从实际位置向右延长）
     """
     os.makedirs(save_dir, exist_ok=True)
 
@@ -31,32 +32,11 @@ def plot_kline_with_levels(
 
     key_levels = detect_key_levels(df.reset_index(), lookback=lookback)
 
-    # 自定义市场颜色
-    mc = mpf.make_marketcolors(
-        up='red',                    # 上涨K线：红色
-        down='#81D4FA',              # 下跌K线：浅蓝色
-        edge='inherit',
-        wick='inherit',
-        volume='inherit'
-    )
-
-    # 自定义深灰背景样式
-    s = mpf.make_mpf_style(
-        base_mpf_style='nightclouds',
-        marketcolors=mc,
-        figcolor='#2C2C2C',          # 整体背景（深灰）
-        facecolor='#2C2C2C',         # 绘图区域背景（深灰）
-        edgecolor='#AAAAAA',
-        gridcolor='#555555',
-        gridstyle='--',
-        y_on_right=False
-    )
-
     addplots = []
     if show_ma20:
-        addplots.append(mpf.make_addplot(df['ma20'], color='#FFEB3B', width=1.3))  # 黄色MA20
+        addplots.append(mpf.make_addplot(df['ma20'], color='#FFEB3B', width=1.3))
 
-    # 压力位（绿色虚线）
+    # 压力位（绿色，从对应位置向右延长）
     for item in key_levels.get("resistances", []):
         level = item["price"]
         idx = item.get("index", 0)
@@ -64,7 +44,7 @@ def plot_kline_with_levels(
         arr[idx:] = [level] * (len(df) - idx)
         addplots.append(mpf.make_addplot(arr, color='#4CAF50', linestyle='--', width=0.9))
 
-    # 支撑位（红色虚线）
+    # 支撑位（红色，从对应位置向右延长）
     for item in key_levels.get("supports", []):
         level = item["price"]
         idx = item.get("index", 0)
@@ -79,7 +59,7 @@ def plot_kline_with_levels(
     mpf.plot(
         df,
         type='candle',
-        style=s,
+        style='nightclouds',
         title=f"{symbol} {period} K线 + 关键位",
         ylabel='Price',
         addplot=addplots if addplots else None,
@@ -89,3 +69,16 @@ def plot_kline_with_levels(
 
     print(f"✅ K线图已保存至: {filepath}")
     return filepath
+
+
+def generate_kline_chart(symbol: str, period: str = "D") -> str:
+    """
+    【Agent 可调用工具】
+    生成K线图（包含支撑压力位），并返回图片路径。
+    Agent 可以在分析关键位时主动调用此工具。
+    """
+    try:
+        path = plot_kline_with_levels(symbol, period=period)
+        return f"已成功生成K线图，保存路径为：{path}。你可以查看图中的支撑位和压力位辅助分析。"
+    except Exception as e:
+        return f"生成K线图失败，错误信息：{str(e)}"
