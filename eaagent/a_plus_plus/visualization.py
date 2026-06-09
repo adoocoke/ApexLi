@@ -32,9 +32,30 @@ def plot_kline_with_levels(
 
     key_levels = detect_key_levels(df.reset_index(), lookback=lookback)
 
+    # 自定义市场颜色
+    mc = mpf.make_marketcolors(
+        up='red',                    # 上涨K线：红色
+        down='#81D4FA',              # 下跌K线：浅蓝色
+        edge='inherit',
+        wick='inherit',
+        volume='inherit'
+    )
+
+    # 自定义深灰背景样式
+    s = mpf.make_mpf_style(
+        base_mpf_style='nightclouds',
+        marketcolors=mc,
+        figcolor='#2C2C2C',          # 整体背景（深灰）
+        facecolor='#2C2C2C',         # 绘图区域背景（深灰）
+        edgecolor='#AAAAAA',
+        gridcolor='#555555',
+        gridstyle='--',
+        y_on_right=False
+    )
+
     addplots = []
     if show_ma20:
-        addplots.append(mpf.make_addplot(df['ma20'], color='#FFEB3B', width=1.3))
+        addplots.append(mpf.make_addplot(df['ma20'], color='#FFEB3B', width=1.3))  # 黄色MA20
 
     # 压力位（绿色，从对应位置向右延长）
     for item in key_levels.get("resistances", []):
