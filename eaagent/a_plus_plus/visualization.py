@@ -1,8 +1,9 @@
 import os
 from datetime import datetime
-from typing import Optional, Literal
+from typing import Literal
 
 import pandas as pd
+import numpy as np
 import mplfinance as mpf
 
 from .tools import get_futures_klines, detect_key_levels
@@ -16,9 +17,9 @@ def plot_kline_with_levels(
     save_dir: str = "artifacts/charts"
 ) -> str:
     """
-    绘制K线图 + MA20 + 支撑位 + 压力位
-    - 支撑位：红色虚线
-    - 压力位：绿色虚线
+    绘制K线图 + MA20 + 支撑位 + 压力位（射线式：从实际位置向右延长）
+    - 支撑位：红色虚线（从最低点开始向右）
+    - 压力位：绿色虚线（从最高点开始向右）
     """
     os.makedirs(save_dir, exist_ok=True)
 
@@ -30,22 +31,30 @@ def plot_kline_with_levels(
     df.index = pd.to_datetime(df.index)
     df['ma20'] = df['close'].rolling(window=20).mean()
 
-    # 获取关键位
     key_levels = detect_key_levels(df.reset_index(), lookback=lookback)
 
     addplots = []
     if show_ma20:
         addplots.append(mpf.make_addplot(df['ma20'], color='orange', width=1.5))
 
-    # 压力位（绿色虚线）
-    for level in key_levels.get("resistances", []):
-        addplots.append(mpf.make_addplot([level] * len(df), color='green', linestyle='--', width=1.2))
+    n = len(df)
 
-    # 支撑位（红色虚线）
-    for level in key_levels.get("supports", []):
-        addplots.append(mpf.make_addplot([level] * len(df), color='red', linestyle='--', width=1.2))
+    # 压力位（绿色，从对应位置向右延长）
+    for item in key_levels.get("resistances", []):
+        level = item["price"]
+        idx = item.get("index", 0)
+        arr = np.full(n, np.nan)
+        arr[idx:] = level
+        addplots.append(mpf.make_addplot(arr, color='green', linestyle='--', width=1.2))
 
-    # 保存路径
+    # 支撑位（红色，从对应位置向右延长）
+    for item in key_levels.get("supports", []):
+        level = item["price"]
+        idx = item.get("index", 0)
+        arr = np.full(n, np.nan)
+        arr[idx:] = level
+        addplots.append(mpf.make_addplot(arr, color='red', linestyle='--', width=1.2))
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{symbol}_{period}_{timestamp}.png"
     filepath = os.path.join(save_dir, filename)

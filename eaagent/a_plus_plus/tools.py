@@ -36,6 +36,27 @@ def _save_to_cache(key: str, data: Dict[str, Any]):
     }
 
 
+def _get_mock_klines(symbol: str, period: str, lookback: int = 60) -> pd.DataFrame:
+    np.random.seed(42)
+    dates = pd.date_range(end=pd.Timestamp.now().normalize(), periods=lookback, freq='D')
+    base_price = 3100 if symbol.startswith("RB") else 780
+    close = np.cumsum(np.random.randn(lookback) * 8) + base_price
+    high = close + np.abs(np.random.randn(lookback) * 6)
+    low = close - np.abs(np.random.randn(lookback) * 6)
+    open_ = close + np.random.randn(lookback) * 4
+
+    df = pd.DataFrame({
+        'trade_date': dates,
+        'open': open_,
+        'high': high,
+        'low': low,
+        'close': close,
+        'vol': np.random.randint(300, 1200, lookback),
+        'oi': np.random.randint(3000, 6000, lookback)
+    })
+    return df
+
+
 def _get_mock_observation(symbol: str) -> Dict[str, Any]:
     mock_data = {
         "RB2605": {
@@ -43,8 +64,8 @@ def _get_mock_observation(symbol: str) -> Dict[str, Any]:
             "volume_change": 1240, "oi_change": -380, "volume_change_pct": 18.5,
             "atr": 38.2, "ma20": 3128.5,
             "key_levels": {
-                "resistances": [3295.0, 3220.0],
-                "supports": [3065.0, 3120.0],
+                "resistances": [{"price": 3295.0, "index": 45}, {"price": 3220.0, "index": 52}],
+                "supports": [{"price": 3065.0, "index": 38}, {"price": 3120.0, "index": 55}],
                 "key_levels_text": "压力位：3295 / 3220 | 支撑位：3065 / 3120"
             }
         }
@@ -82,6 +103,9 @@ def get_futures_klines(
     limit: int = 300,
     max_retry: int = 2
 ) -> pd.DataFrame:
+    if USE_MOCK_DATA:
+        return _get_mock_klines(symbol, period, lookback=limit)
+
     ts_code = symbol.upper().strip()
     if "." not in ts_code:
         ts_code = f"{ts_code}.SHF"
@@ -137,14 +161,10 @@ def calculate_volume_oi_change(df: pd.DataFrame) -> Dict[str, Any]:
 
 def detect_key_levels(df: pd.DataFrame, lookback: int = 60, num_levels: int = 3) -> Dict[str, Any]:
     """
-    优化版关键位识别（基于 swing high/low + 距离排序）
+    返回支撑压力位 + 每个水平对应的K线位置（用于画射线）
     """
     if df.empty or len(df) < 20:
-        return {
-            "resistances": [],
-            "supports": [],
-            "key_levels_text": "数据不足，无法有效识别关键位"
-        }
+        return {"resistances": [], "supports": [], "key_levels_text": "数据不足"}
 
     recent_df = df.tail(lookback).reset_index(drop=True)
     highs = recent_df["high"].values
@@ -155,28 +175,22 @@ def detect_key_levels(df: pd.DataFrame, lookback: int = 60, num_levels: int = 3)
     resistances = []
     supports = []
 
-    # 简单但有效的 swing high / swing low 检测
     for i in range(2, len(recent_df) - 2):
-        # Swing High
-        if (highs[i] > highs[i-1] and highs[i] > highs[i-2] and
-            highs[i] > highs[i+1] and highs[i] > highs[i+2]):
-            resistances.append(round(highs[i], 2))
+        if highs[i] > highs[i-1] and highs[i] > highs[i-2] and highs[i] > highs[i+1] and highs[i] > highs[i+2]:
+            resistances.append({"price": round(highs[i], 2), "index": i})
+        if lows[i] < lows[i-1] and lows[i] < lows[i-2] and lows[i] < lows[i+1] and lows[i] < lows[i+2]:
+            supports.append({"price": round(lows[i], 2), "index": i})
 
-        # Swing Low
-        if (lows[i] < lows[i-1] and lows[i] < lows[i-2] and
-            lows[i] < lows[i+1] and lows[i] < lows[i+2]):
-            supports.append(round(lows[i], 2))
+    # 按距离当前价格排序，取最近的几个
+    resistances = sorted(resistances, key=lambda x: abs(x["price"] - current_price))[:num_levels]
+    supports = sorted(supports, key=lambda x: abs(x["price"] - current_price))[:num_levels]
 
-    # 去重并按距离当前价格排序，取最近的几个
-    resistances = sorted(list(set(resistances)), key=lambda x: abs(x - current_price))[:num_levels]
-    supports = sorted(list(set(supports)), key=lambda x: abs(x - current_price))[:num_levels]
+    # 重新按价格从高到低 / 低到高排序
+    resistances = sorted(resistances, key=lambda x: x["price"], reverse=True)
+    supports = sorted(supports, key=lambda x: x["price"])
 
-    # 排序输出
-    resistances = sorted(resistances, reverse=True)
-    supports = sorted(supports)
-
-    res_str = " / ".join(map(str, resistances)) if resistances else "无"
-    sup_str = " / ".join(map(str, supports)) if supports else "无"
+    res_str = " / ".join([str(r["price"]) for r in resistances]) if resistances else "无"
+    sup_str = " / ".join([str(s["price"]) for s in supports]) if supports else "无"
 
     return {
         "resistances": resistances,
