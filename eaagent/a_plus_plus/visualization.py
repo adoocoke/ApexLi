@@ -80,7 +80,7 @@ def plot_kline_with_levels(
     mpf.plot(
         df,
         type='candle',
-        style='nightclouds',
+        style=s,
         title=f"{symbol} {period} K线 + 关键位",
         ylabel='Price',
         addplot=addplots if addplots else None,
