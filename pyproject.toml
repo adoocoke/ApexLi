@@ -27,6 +27,10 @@ langgraph = [
     "langgraph>=0.2.0",
     "langchain-core>=0.3.0",
 ]
+visualization = [
+    "matplotlib>=3.7.0",
+    "mplfinance>=0.12.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
