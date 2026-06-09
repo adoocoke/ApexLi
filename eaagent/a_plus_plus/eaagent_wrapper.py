@@ -1,5 +1,4 @@
 from ..agent import ReActAgent
-from .visualization import generate_kline_chart
 
 
 class APlusPlusReActAgent(ReActAgent):
@@ -11,7 +10,10 @@ class APlusPlusReActAgent(ReActAgent):
         super().__init__(**kwargs)
         self.model_name = model_name
 
-        # 正确注册可视化工具（结构化方式）
+        # 延迟导入，避免强制依赖 mplfinance
+        from .visualization import generate_kline_chart
+
+        # 注册可视化工具
         self.add_tool(
             name="generate_kline_chart",
             description=generate_kline_chart.__doc__ or "生成K线图并标注支撑压力位",
