@@ -21,40 +21,30 @@ def _get_message_content(msg: Any) -> str:
 
 
 def tools_node(state: APlusPlusState) -> APlusPlusState:
-    """
-    多时间框架工具节点（支持优雅降级）
-    - 优先获取日线（必须）
-    - 尝试获取30分钟（可选，失败则降级）
-    """
     symbol = state.get("current_symbol", "RB2605")
 
-    # 1. 获取日线（核心数据）
     daily_obs = get_structured_observation(symbol, period="D")
-
-    # 2. 尝试获取30分钟（可选）
     try:
         min30_obs = get_structured_observation(symbol, period="30")
-        min30_text = min30_obs.get('observation_text', '')
         min30_available = True
-    except Exception as e:
-        min30_text = f"【30分钟数据获取失败】{str(e)[:80]}"
+    except Exception:
+        min30_obs = {"observation_text": "【30分钟数据获取失败】"}
         min30_available = False
 
-    # 3. 组合 Observation
     if min30_available:
         combined = f"""【日线观察 - 大趋势】
 {daily_obs.get('observation_text', '')}
 
 【30分钟观察 - 结构与入场】
-{min30_text}
+{min30_obs.get('observation_text', '')}
 """
     else:
         combined = f"""【日线观察 - 大趋势】
 {daily_obs.get('observation_text', '')}
 
 【30分钟观察】
-{min30_text}
-（系统已自动降级，仅使用日线数据进行分析）
+{min30_obs.get('observation_text', '')}
+（系统已自动降级，仅使用日线数据）
 """
 
     state["messages"].append({
@@ -67,7 +57,6 @@ def tools_node(state: APlusPlusState) -> APlusPlusState:
         "30min": min30_obs if min30_available else None,
         "30min_available": min30_available
     }
-
     state["next_action"] = "ea_reasoning"
     return state
 
@@ -97,24 +86,53 @@ def reflection_node(state: APlusPlusState) -> APlusPlusState:
             last_assistant_msg = msg.get("content", "")
             break
 
-    reflection_parts = ["【自我反思】"]
-
     last_obs = state.get("last_observation", {})
-    if last_obs.get("30min_available") is False:
-        reflection_parts.append("⚠️ 30分钟数据获取失败，已自动降级为仅使用日线分析。")
-    elif "日线观察" in last_assistant_msg and "30分钟观察" in last_assistant_msg:
-        reflection_parts.append("✅ 成功结合日线趋势 + 30分钟结构进行分析。")
+    min30_available = last_obs.get("30min_available", True)
 
-    if any(kw in last_assistant_msg for kw in ["量仓", "持仓量", "成交量变化"]):
-        reflection_parts.append("✅ 关注了量仓变化，符合 Playbook 核心逻辑。")
+    # === 结构化反思 ===
+    strengths = []
+    issues = []
+    suggestions = []
+
+    # 多时间框架检查
+    if "日线观察" in last_assistant_msg and "30分钟观察" in last_assistant_msg:
+        strengths.append("成功结合日线趋势与30分钟结构进行分析")
+    elif min30_available is False:
+        issues.append("30分钟数据缺失，分析维度不够完整")
     else:
-        reflection_parts.append("⚠️ 建议加入量仓变化的观察。")
+        issues.append("未充分结合日线和30分钟两个周期的数据")
 
+    # 量仓逻辑检查
+    if any(kw in last_assistant_msg for kw in ["量仓", "持仓量", "成交量变化"]):
+        strengths.append("关注了量仓变化，符合 Playbook 核心逻辑")
+    else:
+        issues.append("未明确分析量仓变化")
+
+    # 主动放弃 / 信息不足检查
     if any(kw in last_assistant_msg for kw in ["主动放弃", "暂不", "保持观望", "信息不足"]):
-        reflection_parts.append("✅ 体现了信息不足时主动放弃/观望的意识。")
+        strengths.append("体现了信息不足时主动放弃/观望的意识")
+    else:
+        issues.append("在低置信度情况下仍给出较强判断，风险较高")
 
-    reflection = "\n".join(reflection_parts)
-    reflection += "\n\n建议：继续保持多时间框架分析 + 量仓逻辑的风格。"
+    # 风险控制检查
+    if any(kw in last_assistant_msg for kw in ["止损", "风险", "仓位", "轻仓"]):
+        strengths.append("具备一定的风险控制意识")
+    else:
+        issues.append("未提及止损或仓位管理，风险控制不足")
+
+    # 生成结构化反思
+    reflection = "【自我反思】\n\n"
+
+    if strengths:
+        reflection += "✅ **优点**：\n" + "\n".join([f"  - {s}" for s in strengths]) + "\n\n"
+    if issues:
+        reflection += "⚠️ **问题与风险**：\n" + "\n".join([f"  - {i}" for i in issues]) + "\n\n"
+    if suggestions:
+        reflection += "💡 **改进建议**：\n" + "\n".join([f"  - {s}" for s in suggestions]) + "\n\n"
+
+    # 简单置信度评分（可后续优化为更智能的打分）
+    confidence = 7 if len(strengths) >= 2 and len(issues) <= 1 else 5
+    reflection += f"📊 **置信度评分**：{confidence}/10\n"
 
     state["reflection_notes"] = reflection
     state["messages"].append({"role": "system", "content": reflection})
