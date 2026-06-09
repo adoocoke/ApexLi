@@ -3,7 +3,6 @@ from datetime import datetime
 from typing import Literal
 
 import pandas as pd
-import numpy as np
 import mplfinance as mpf
 
 from .tools import get_futures_klines, detect_key_levels
@@ -17,9 +16,8 @@ def plot_kline_with_levels(
     save_dir: str = "artifacts/charts"
 ) -> str:
     """
-    绘制K线图 + MA20 + 支撑位 + 压力位（射线式：从实际位置向右延长）
-    - 支撑位：红色虚线（从最低点开始向右）
-    - 压力位：绿色虚线（从最高点开始向右）
+    K线图（深灰背景 + 红色上涨 + 浅蓝色下跌）
+    + MA20 + 射线式支撑压力位
     """
     os.makedirs(save_dir, exist_ok=True)
 
@@ -33,27 +31,46 @@ def plot_kline_with_levels(
 
     key_levels = detect_key_levels(df.reset_index(), lookback=lookback)
 
+    # 自定义市场颜色
+    mc = mpf.make_marketcolors(
+        up='red',                    # 上涨K线：红色
+        down='#81D4FA',              # 下跌K线：浅蓝色
+        edge='inherit',
+        wick='inherit',
+        volume='inherit'
+    )
+
+    # 自定义深灰背景样式
+    s = mpf.make_mpf_style(
+        base_mpf_style='nightclouds',
+        marketcolors=mc,
+        figcolor='#2C2C2C',          # 整体背景（深灰）
+        facecolor='#2C2C2C',         # 绘图区域背景（深灰）
+        edgecolor='#AAAAAA',
+        gridcolor='#555555',
+        gridstyle='--',
+        y_on_right=False
+    )
+
     addplots = []
     if show_ma20:
-        addplots.append(mpf.make_addplot(df['ma20'], color='orange', width=1.5))
+        addplots.append(mpf.make_addplot(df['ma20'], color='#FFEB3B', width=1.3))  # 黄色MA20
 
-    n = len(df)
-
-    # 压力位（绿色，从对应位置向右延长）
+    # 压力位（绿色虚线）
     for item in key_levels.get("resistances", []):
         level = item["price"]
         idx = item.get("index", 0)
-        arr = np.full(n, np.nan)
-        arr[idx:] = level
-        addplots.append(mpf.make_addplot(arr, color='green', linestyle='--', width=1.2))
+        arr = [float('nan')] * len(df)
+        arr[idx:] = [level] * (len(df) - idx)
+        addplots.append(mpf.make_addplot(arr, color='#4CAF50', linestyle='--', width=0.9))
 
-    # 支撑位（红色，从对应位置向右延长）
+    # 支撑位（红色虚线）
     for item in key_levels.get("supports", []):
         level = item["price"]
         idx = item.get("index", 0)
-        arr = np.full(n, np.nan)
-        arr[idx:] = level
-        addplots.append(mpf.make_addplot(arr, color='red', linestyle='--', width=1.2))
+        arr = [float('nan')] * len(df)
+        arr[idx:] = [level] * (len(df) - idx)
+        addplots.append(mpf.make_addplot(arr, color='#E53935', linestyle='--', width=0.9))
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{symbol}_{period}_{timestamp}.png"
@@ -62,11 +79,11 @@ def plot_kline_with_levels(
     mpf.plot(
         df,
         type='candle',
-        style='charles',
+        style=s,
         title=f"{symbol} {period} K线 + 关键位",
         ylabel='Price',
         addplot=addplots if addplots else None,
-        figsize=(12, 6),
+        figsize=(13, 7),
         savefig=filepath
     )
 
