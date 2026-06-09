@@ -1,35 +1,38 @@
-from typing import Optional, Dict, Any
-from eaagent.agent import ReActAgent
-from .prompt_builder import PlaybookPromptBuilder
+from ..agent import ReActAgent
+from .visualization import generate_kline_chart
 
 
 class APlusPlusReActAgent(ReActAgent):
     """
-    继承 eaagent 的 ReActAgent，并注入 A++ Playbook
+    扩展的 ReAct Agent，集成了交易相关的工具和 Playbook
     """
 
-    def __init__(self, playbook_path: str = "trading_playbook_v3.md", **kwargs):
-        # 注意：这里不再传 model_name，全部透传给父类
+    def __init__(self, model_name: str = "grok-4.3", **kwargs):
         super().__init__(**kwargs)
-        self.prompt_builder = PlaybookPromptBuilder(playbook_path)
-        self.playbook_rules: Optional[Dict[str, Any]] = None
+        self.model_name = model_name
+
+        # 正确注册可视化工具（结构化方式）
+        self.add_tool(
+            name="generate_kline_chart",
+            description=generate_kline_chart.__doc__ or "生成K线图并标注支撑压力位",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "期货合约代码，例如 RB2605、I2609"
+                    },
+                    "period": {
+                        "type": "string",
+                        "description": "K线周期，D 表示日线，30 表示30分钟",
+                        "default": "D"
+                    }
+                },
+                "required": ["symbol"]
+            },
+            function=generate_kline_chart
+        )
 
     def load_playbook(self):
-        """加载 Playbook"""
-        self.playbook_rules = {"status": "loaded", "version": "v3.0"}
-
-    def build_enhanced_prompt(self, rag_context: Optional[str] = None) -> str:
-        """构建注入 Playbook 的 Prompt"""
-        return self.prompt_builder.build_system_prompt(rag_context=rag_context)
-
-    def run_with_playbook(self, goal: str, rag_context: Optional[str] = None) -> str:
-        """
-        增强版 run 方法，自动注入 Playbook
-        """
-        enhanced_prompt = self.build_enhanced_prompt(rag_context)
-        full_goal = f"{enhanced_prompt}\n\n用户目标：{goal}"
-        return self.run(full_goal)
-
-    def remember_feedback(self, feedback: Dict[str, Any]):
-        """记录人类反馈，用于后续 AIFED 成长"""
-        print(f"[AIFED] 收到反馈: {feedback}")
+        """加载交易 Playbook（由子类或外部调用）"""
+        pass
