@@ -2,7 +2,7 @@ import os
 import time
 import pandas as pd
 import numpy as np
-from typing import Optional, Dict, Any, Literal
+from typing import Optional, Dict, Any, Literal, List
 from dotenv import load_dotenv
 
 import tushare as ts
@@ -42,23 +42,26 @@ def _get_mock_observation(symbol: str) -> Dict[str, Any]:
             "latest_price": 3150.0, "price_change": 12.0, "price_change_pct": 0.38,
             "volume_change": 1240, "oi_change": -380, "volume_change_pct": 18.5,
             "atr": 38.2, "ma20": 3128.5,
-            "recent_high": 3295.0, "recent_low": 3065.0,
-            "key_levels_text": "关键位：压力 3295 / 支撑 3065"
+            "key_levels": {
+                "resistances": [3295.0, 3220.0],
+                "supports": [3065.0, 3120.0],
+                "key_levels_text": "压力位：3295 / 3220 | 支撑位：3065 / 3120"
+            }
         }
     }
     data = mock_data.get(symbol.upper(), mock_data["RB2605"])
     text = f"""【{symbol} 模拟结构化观察】
 - 最新收盘: {data['latest_price']} | 价格变化: {data['price_change']:+.2f} ({data['price_change_pct']:+.2f}%)
-- {data.get('volume_oi', {}).get('summary', '')}
+- 成交量变化 {data['volume_change']:+d} ({data['volume_change_pct']:+.1f}%), 持仓量变化 {data['oi_change']:+d}
 - ATR: {data['atr']} | MA20: {data['ma20']}
-- {data.get('key_levels_text', '')}"""
+- {data['key_levels']['key_levels_text']}"""
     return {
         "symbol": symbol, "status": "mock",
         "latest_price": data['latest_price'],
         "price_change": data['price_change'],
         "volume_oi": data.get('volume_oi', {}),
         "atr": data['atr'], "ma20": data['ma20'],
-        "key_levels": {"recent_high": data['recent_high'], "recent_low": data['recent_low']},
+        "key_levels": data['key_levels'],
         "observation_text": text.strip()
     }
 
@@ -132,19 +135,53 @@ def calculate_volume_oi_change(df: pd.DataFrame) -> Dict[str, Any]:
     }
 
 
-def detect_key_levels(df: pd.DataFrame, lookback: int = 60) -> Dict[str, Any]:
-    """改进版关键位识别（支持更长周期）"""
-    if df.empty or len(df) < 10:
-        return {"recent_high": None, "recent_low": None, "key_levels_text": "数据不足"}
+def detect_key_levels(df: pd.DataFrame, lookback: int = 60, num_levels: int = 3) -> Dict[str, Any]:
+    """
+    优化版关键位识别（基于 swing high/low + 距离排序）
+    """
+    if df.empty or len(df) < 20:
+        return {
+            "resistances": [],
+            "supports": [],
+            "key_levels_text": "数据不足，无法有效识别关键位"
+        }
 
-    recent = df.tail(lookback)
-    recent_high = round(recent["high"].max(), 2)
-    recent_low = round(recent["low"].min(), 2)
+    recent_df = df.tail(lookback).reset_index(drop=True)
+    highs = recent_df["high"].values
+    lows = recent_df["low"].values
+    closes = recent_df["close"].values
+    current_price = closes[-1]
+
+    resistances = []
+    supports = []
+
+    # 简单但有效的 swing high / swing low 检测
+    for i in range(2, len(recent_df) - 2):
+        # Swing High
+        if (highs[i] > highs[i-1] and highs[i] > highs[i-2] and
+            highs[i] > highs[i+1] and highs[i] > highs[i+2]):
+            resistances.append(round(highs[i], 2))
+
+        # Swing Low
+        if (lows[i] < lows[i-1] and lows[i] < lows[i-2] and
+            lows[i] < lows[i+1] and lows[i] < lows[i+2]):
+            supports.append(round(lows[i], 2))
+
+    # 去重并按距离当前价格排序，取最近的几个
+    resistances = sorted(list(set(resistances)), key=lambda x: abs(x - current_price))[:num_levels]
+    supports = sorted(list(set(supports)), key=lambda x: abs(x - current_price))[:num_levels]
+
+    # 排序输出
+    resistances = sorted(resistances, reverse=True)
+    supports = sorted(supports)
+
+    res_str = " / ".join(map(str, resistances)) if resistances else "无"
+    sup_str = " / ".join(map(str, supports)) if supports else "无"
 
     return {
-        "recent_high": recent_high,
-        "recent_low": recent_low,
-        "key_levels_text": f"关键位：压力 {recent_high} / 支撑 {recent_low}"
+        "resistances": resistances,
+        "supports": supports,
+        "key_levels_text": f"压力位：{res_str} | 支撑位：{sup_str}"
     }
 
 
@@ -157,7 +194,7 @@ def get_structured_observation(
         return _get_mock_observation(symbol)
 
     if lookback is None:
-        lookback = 60 if period == "D" else 40   # 日线拿更多数据
+        lookback = 60 if period == "D" else 40
 
     cache_key = _get_cache_key(symbol, period, lookback)
     cached = _get_from_cache(cache_key)
@@ -167,11 +204,10 @@ def get_structured_observation(
     df = get_futures_klines(symbol=symbol, period=period, limit=lookback + 5)
 
     if df.empty:
-        result = {
+        return {
             "symbol": symbol, "status": "error", "period": period,
             "observation_text": f"【{symbol}】无法获取 {period} 数据"
         }
-        return result
 
     vol_oi = calculate_volume_oi_change(df)
     atr = calculate_atr(df)
@@ -187,7 +223,7 @@ def get_structured_observation(
 - 最新收盘: {latest['close']} | 价格变化: {price_chg:+.2f} ({price_pct:+.2f}%)
 - {vol_oi['summary']}
 - ATR: {atr} | MA20: {ma20}
-- {key_levels.get('key_levels_text', '')}"""
+- {key_levels['key_levels_text']}"""
 
     result = {
         "symbol": symbol, "status": "success", "period": period,
