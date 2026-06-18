@@ -1,11 +1,9 @@
 name: Tests
-
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-
 jobs:
   test:
     name: Run tests and collect coverage
@@ -19,7 +17,6 @@ jobs:
         with:
           fetch-depth: 2
 
-      # ====================== 新增：Checkout 私有 Playbook 仓库 ======================
       - name: Checkout Private Playbook Repo
         uses: actions/checkout@v4
         with:
@@ -39,13 +36,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,tushare]"
+          pip install -e ".[dev,tushare,langgraph]"
 
       - name: Run tests with coverage
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          USE_MOCK_OBSERVATION: "true"   # 推荐开启 Mock，避免 Tushare 限流
+          USE_MOCK_OBSERVATION: "true"
         run: |
           python -m pytest \
             --cov=eaagent \
