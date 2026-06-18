@@ -1,6 +1,8 @@
 """
-测试 eaagent.a_plus_plus.graph 模块
+测试 eaagent.a_plus_plus.graph 模块（不调用真实 LLM）
 """
+import os
+os.environ.setdefault("USE_MOCK_LLM", "true")   # 放在最前面
 
 import pytest
 from eaagent.a_plus_plus.graph import (
@@ -20,7 +22,7 @@ def test_create_initial_state():
 
 
 def test_full_graph_execution():
-    """测试完整流程是否能正常运行"""
+    """测试完整流程（使用 mock LLM）"""
     app = build_graph()
     state = create_initial_state("RB2605.SHF")
     config = {"configurable": {"thread_id": state["thread_id"]}}
@@ -33,7 +35,6 @@ def test_full_graph_execution():
 
 
 def test_quality_sensor_detects_issues():
-    """测试 quality_sensor 能检测到问题"""
     state: TAState = create_initial_state("TEST")
     state["iteration"] = 1
     state["observations"] = [{"llm_observation": "测试观察"}]
@@ -44,7 +45,6 @@ def test_quality_sensor_detects_issues():
 
 
 def test_signal_generation_node():
-    """测试 signal_generation 节点"""
     state: TAState = create_initial_state("TEST")
     state["iteration"] = 1
     state["observations"] = [{"llm_observation": "测试观察"}]
@@ -56,7 +56,6 @@ def test_signal_generation_node():
 
 
 def test_graph_has_persistence():
-    """测试持久化功能"""
     app = build_graph()
     state = create_initial_state("RB2605.SHF")
     thread_id = state["thread_id"]
