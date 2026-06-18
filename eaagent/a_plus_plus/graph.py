@@ -1,6 +1,6 @@
 """
 eaagent/a_plus_plus/graph.py
-高质量自动分析版 + 多轮循环 + 透明日志（Playbook 规则 + Tushare 详情）
+高质量自动分析版 + 多轮循环 + 真实 Tushare + 智能问题检测
 """
 
 from __future__ import annotations
@@ -13,10 +13,10 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
 
-# ==================== Playbook 加载与规则提取 ====================
+# ==================== Playbook 加载 ====================
 PLAYBOOK_CONTENT = ""
 PLAYBOOK_LOADED = False
-PLAYBOOK_RULES = []   # 提取出的关键规则列表
+PLAYBOOK_RULES = []
 
 def load_playbook() -> bool:
     global PLAYBOOK_CONTENT, PLAYBOOK_LOADED, PLAYBOOK_RULES
@@ -32,12 +32,8 @@ def load_playbook() -> bool:
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     PLAYBOOK_CONTENT = f.read()
-
-                # 简单提取关键规则（可根据实际 Playbook 结构优化）
-                PLAYBOOK_RULES = re.findall(r'###\s*(.+?)(?=\n|$)', PLAYBOOK_CONTENT)
-                if not PLAYBOOK_RULES:
-                    PLAYBOOK_RULES = ["量仓变化优先", "多时间框架一致性", "严格止损纪律"]
-
+                PLAYBOOK_RULES = re.findall(r'###\s*(.+?)(?=\n|$)', PLAYBOOK_CONTENT) or \
+                                 ["量仓变化优先", "多时间框架一致性", "严格止损纪律"]
                 PLAYBOOK_LOADED = True
                 print(f"[Playbook] ✅ 成功加载: {path}（共 {len(PLAYBOOK_RULES)} 条关键规则）")
                 return True
@@ -49,32 +45,44 @@ def load_playbook() -> bool:
     return False
 
 
-def get_relevant_playbook_rules(context: str) -> List[str]:
-    """根据当前上下文匹配相关 Playbook 规则"""
+def get_relevant_playbook_rules(context: str = "") -> List[str]:
     if not PLAYBOOK_LOADED:
         return []
-
     relevant = []
     context_lower = context.lower()
-
     for rule in PLAYBOOK_RULES:
         rule_lower = rule.lower()
-        if any(keyword in context_lower for keyword in ["量", "仓", "止损", "时间框架", "支撑", "阻力"]):
+        if any(kw in context_lower for kw in ["量", "仓", "止损", "时间框架", "支撑", "阻力"]):
             if any(kw in rule_lower for kw in ["量", "仓", "止损", "时间", "框架"]):
                 relevant.append(rule)
+    return relevant[:3] if relevant else PLAYBOOK_RULES[:3]
 
-    return relevant[:3] if relevant else PLAYBOOK_RULES[:2]
+
+def build_playbook_prompt() -> str:
+    if not PLAYBOOK_LOADED or not PLAYBOOK_CONTENT:
+        return "你是一个专业的期货技术分析师，请严格遵守交易纪律进行分析。"
+    core_content = PLAYBOOK_CONTENT[:4000]
+    return f"""你是一个专业的期货技术分析师，请严格遵守以下 Playbook 规则进行分析：
+
+{core_content}
+
+分析要求：
+- 必须关注量仓变化
+- 多时间框架信号需保持一致性
+- 必须设置合理止损
+- 信息不足时主动放弃判断
+"""
 
 
-# ==================== Tushare 数据获取（带详细日志） ====================
+# ==================== Tushare 数据获取（详细原因打印） ====================
 def get_real_tushare_data(symbol: str, timeframes: List[str]) -> Dict[str, Any]:
-    print(f"[Tushare] 尝试获取 {symbol} 的 {timeframes} 数据...")
+    print(f"[Tushare] 开始获取 {symbol} 的 {timeframes} 数据...")
 
     try:
         import tushare as ts
         token = os.getenv("TUSHARE_TOKEN")
         if not token:
-            raise ValueError("环境变量 TUSHARE_TOKEN 未设置")
+            raise ValueError("TUSHARE_TOKEN 环境变量未设置")
 
         ts.set_token(token)
         pro = ts.pro_api()
@@ -92,18 +100,18 @@ def get_real_tushare_data(symbol: str, timeframes: List[str]) -> Dict[str, Any]:
                         "high": float(latest.get('high', 0)),
                         "low": float(latest.get('low', 0)),
                     }
-                    print(f"[Tushare] {tf} 获取成功，最新 close={data[tf]['close']}")
+                    print(f"[Tushare] {tf} 获取成功 → close={data[tf]['close']}")
                 else:
                     data[tf] = {"close": 0, "volume": 0}
-                    print(f"[Tushare] {tf} 无数据")
+                    print(f"[Tushare] {tf} 无数据，原因: 该时间段内无交易记录或品种代码错误")
             except Exception as e:
-                print(f"[Tushare] {tf} 获取失败: {e}")
                 data[tf] = {"close": 0, "volume": 0}
+                print(f"[Tushare] {tf} 获取失败，具体原因: {str(e)}")
 
         return data
 
     except Exception as e:
-        print(f"[Tushare] 整体获取失败: {e}，回退到 Mock 数据")
+        print(f"[Tushare] 整体获取失败，原因: {str(e)}，回退到 Mock 数据")
         return {
             "5m": {"close": 4120, "volume": 120000},
             "30m": {"close": 4115, "volume": 85000},
@@ -174,8 +182,13 @@ def initialize_state(state: TAState) -> TAState:
 
     if load_playbook():
         state["playbook_used"] = True
+        state["messages"].append({"role": "system", "content": build_playbook_prompt()})
     else:
         state["playbook_used"] = False
+        state["messages"].append({
+            "role": "system",
+            "content": "你是一个专业的期货技术分析师，请严格遵守交易纪律进行分析。"
+        })
 
     print(f"  - 最大分析轮次: {state['max_rounds']}")
     print("="*70)
@@ -187,9 +200,7 @@ def data_ingestion(state: TAState) -> TAState:
     print(f"\n[第 {state['iteration']} 轮] 数据获取阶段")
 
     if state["data_source"] == "tushare":
-        state["market_data"] = get_real_tushare_data(
-            state["current_symbol"], state["timeframes"]
-        )
+        state["market_data"] = get_real_tushare_data(state["current_symbol"], state["timeframes"])
     else:
         print("  → 使用 Mock 数据")
         state["market_data"] = {
@@ -202,7 +213,6 @@ def data_ingestion(state: TAState) -> TAState:
 
 def structured_observation(state: TAState) -> TAState:
     print(f"[第 {state['iteration']} 轮] 结构化市场观察")
-
     relevant_rules = get_relevant_playbook_rules("量仓 支撑 阻力")
     if relevant_rules:
         print(f"  → 参考 Playbook 规则: {relevant_rules}")
@@ -217,7 +227,6 @@ def structured_observation(state: TAState) -> TAState:
 
 def signal_generation(state: TAState) -> TAState:
     print(f"[第 {state['iteration']} 轮] 生成交易信号")
-
     relevant_rules = get_relevant_playbook_rules("止损 量仓 时间框架")
     if relevant_rules:
         print(f"  → 参考 Playbook 规则: {relevant_rules}")
@@ -241,14 +250,26 @@ def quality_sensor(state: TAState) -> TAState:
         print(f"  → 参考 Playbook 规则: {relevant_rules}")
 
     issues = []
+
+    # 更智能的问题检测
     if len(state["observations"]) < 2:
-        issues.append("观察数据不足")
+        issues.append("观察数据不足（当前仅1条结构化观察）")
+
     if state["confidence"] < 0.75:
-        issues.append("置信度偏低，建议继续分析")
+        issues.append(f"置信度偏低（当前 {state['confidence']:.0%}），建议继续分析")
+
+    # 新增：检查市场数据是否有效
+    valid_data_count = sum(1 for tf_data in state["market_data"].values() if tf_data.get("close", 0) > 0)
+    if valid_data_count < 2:
+        issues.append("多时间框架有效数据不足")
 
     state["issues"] = issues
     state["risk_assessment"] = {"issues_count": len(issues), "issues": issues}
     state["analysis_rounds"] = state["iteration"]
+
+    if issues:
+        print(f"  → 发现的问题: {issues}")
+
     return state
 
 
@@ -327,7 +348,7 @@ def build_graph():
 
 
 if __name__ == "__main__":
-    print("=== EA Agent - 多轮分析版（透明日志）===\n")
+    print("=== EA Agent - 多轮分析版（智能问题检测 + 详细日志）===\n")
     app = build_graph()
     state = create_initial_state("RB2605")
     config = {"configurable": {"thread_id": state["thread_id"]}}

@@ -1,5 +1,5 @@
 """
-测试 eaagent.a_plus_plus.graph 模块（透明日志 + 多轮 + Tushare 版）
+测试 eaagent.a_plus_plus.graph 模块（多轮 + 智能 Sensors 版）
 """
 
 import pytest
@@ -34,11 +34,12 @@ def test_full_graph_execution():
 
 
 def test_quality_sensor_detects_issues():
-    """测试 quality_sensor 能检测问题"""
+    """测试 quality_sensor 能检测到问题"""
     state: TAState = create_initial_state("TEST")
     state["iteration"] = 1
     state["observations"] = [{"volume_position_change": "放量增仓"}]
     state["confidence"] = 0.6
+    state["market_data"] = {"5m": {"close": 0}, "30m": {"close": 0}}
 
     result = quality_sensor(state)
     assert len(result["issues"]) >= 1
