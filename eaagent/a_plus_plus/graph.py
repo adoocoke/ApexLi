@@ -1,6 +1,6 @@
 """
 eaagent/a_plus_plus/graph.py
-完整可运行版本（发送全部历史数据给 Grok + 真实调用）
+完整可运行版本（测试模式下 call_llm 直接返回固定字符串）
 """
 
 from __future__ import annotations
@@ -18,12 +18,14 @@ from .config import MAX_ROUNDS
 
 
 def call_llm(prompt: str, system_prompt: str = "") -> str:
-    """调用 Grok（带超时保护）"""
-    api_key = os.getenv("XAI_API_KEY")
+    """调用 Grok（测试模式下直接返回固定字符串，无额外开销）"""
+    # 测试模式：直接返回固定字符串
+    if os.getenv("USE_MOCK_LLM") == "true":
+        return "根据历史数据分析，当前处于反弹阶段，建议在支撑位附近做多，止损设在 2915。"
 
+    api_key = os.getenv("XAI_API_KEY")
     if not api_key:
-        print("[LLM] 未检测到 XAI_API_KEY，使用模拟返回")
-        return "根据完整历史数据分析，当前处于反弹阶段，建议在支撑位附近做多，止损设在 2915。"
+        return "根据历史数据分析，当前处于反弹阶段，建议在支撑位附近做多，止损设在 2915。"
 
     from openai import OpenAI
     client = OpenAI(
@@ -312,7 +314,7 @@ def build_graph():
 
 
 if __name__ == "__main__":
-    print("=== EA Agent - 完整可运行版本 ===\n")
+    print("=== EA Agent - 测试优化版 ===\n")
     app = build_graph()
     state = create_initial_state("RB2605.SHF")
     config = {"configurable": {"thread_id": state["thread_id"]}}
