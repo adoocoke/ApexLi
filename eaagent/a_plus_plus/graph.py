@@ -1,6 +1,6 @@
 """
 eaagent/a_plus_plus/graph.py
-高质量自动分析版 + 多轮循环 + 真实 Tushare + 智能问题检测
+高质量自动分析版 + 多轮循环 + Prompt 透明打印 + LLM 响应
 """
 
 from __future__ import annotations
@@ -20,51 +20,33 @@ PLAYBOOK_RULES = []
 
 def load_playbook() -> bool:
     global PLAYBOOK_CONTENT, PLAYBOOK_LOADED, PLAYBOOK_RULES
-
     possible_paths = [
         "artifacts/trading_playbook_v3.md",
         "artifacts/playbooks/trading_playbook_v3.md",
         "trading_playbook_v3.md",
     ]
-
     for path in possible_paths:
         if os.path.exists(path):
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     PLAYBOOK_CONTENT = f.read()
-                PLAYBOOK_RULES = re.findall(r'###\s*(.+?)(?=\n|$)', PLAYBOOK_CONTENT) or \
-                                 ["量仓变化优先", "多时间框架一致性", "严格止损纪律"]
+                PLAYBOOK_RULES = re.findall(r'###\s*(.+?)(?=\n|$)', PLAYBOOK_CONTENT) or ["量仓变化优先"]
                 PLAYBOOK_LOADED = True
-                print(f"[Playbook] ✅ 成功加载: {path}（共 {len(PLAYBOOK_RULES)} 条关键规则）")
+                print(f"[Playbook] ✅ 成功加载: {path}")
                 return True
             except Exception as e:
                 print(f"[Playbook] 读取失败: {e}")
                 return False
-
     print("[Playbook] ❌ 未找到 trading_playbook_v3.md")
     return False
-
-
-def get_relevant_playbook_rules(context: str = "") -> List[str]:
-    if not PLAYBOOK_LOADED:
-        return []
-    relevant = []
-    context_lower = context.lower()
-    for rule in PLAYBOOK_RULES:
-        rule_lower = rule.lower()
-        if any(kw in context_lower for kw in ["量", "仓", "止损", "时间框架", "支撑", "阻力"]):
-            if any(kw in rule_lower for kw in ["量", "仓", "止损", "时间", "框架"]):
-                relevant.append(rule)
-    return relevant[:3] if relevant else PLAYBOOK_RULES[:3]
 
 
 def build_playbook_prompt() -> str:
     if not PLAYBOOK_LOADED or not PLAYBOOK_CONTENT:
         return "你是一个专业的期货技术分析师，请严格遵守交易纪律进行分析。"
-    core_content = PLAYBOOK_CONTENT[:4000]
     return f"""你是一个专业的期货技术分析师，请严格遵守以下 Playbook 规则进行分析：
 
-{core_content}
+{PLAYBOOK_CONTENT[:3500]}
 
 分析要求：
 - 必须关注量仓变化
@@ -72,51 +54,6 @@ def build_playbook_prompt() -> str:
 - 必须设置合理止损
 - 信息不足时主动放弃判断
 """
-
-
-# ==================== Tushare 数据获取（详细原因打印） ====================
-def get_real_tushare_data(symbol: str, timeframes: List[str]) -> Dict[str, Any]:
-    print(f"[Tushare] 开始获取 {symbol} 的 {timeframes} 数据...")
-
-    try:
-        import tushare as ts
-        token = os.getenv("TUSHARE_TOKEN")
-        if not token:
-            raise ValueError("TUSHARE_TOKEN 环境变量未设置")
-
-        ts.set_token(token)
-        pro = ts.pro_api()
-
-        data = {}
-        for tf in timeframes:
-            try:
-                df = pro.fut_daily(ts_code=symbol, start_date='20240601', end_date='20240618')
-                if not df.empty:
-                    latest = df.iloc[-1]
-                    data[tf] = {
-                        "close": float(latest['close']),
-                        "volume": int(latest.get('vol', 0)),
-                        "open": float(latest.get('open', 0)),
-                        "high": float(latest.get('high', 0)),
-                        "low": float(latest.get('low', 0)),
-                    }
-                    print(f"[Tushare] {tf} 获取成功 → close={data[tf]['close']}")
-                else:
-                    data[tf] = {"close": 0, "volume": 0}
-                    print(f"[Tushare] {tf} 无数据，原因: 该时间段内无交易记录或品种代码错误")
-            except Exception as e:
-                data[tf] = {"close": 0, "volume": 0}
-                print(f"[Tushare] {tf} 获取失败，具体原因: {str(e)}")
-
-        return data
-
-    except Exception as e:
-        print(f"[Tushare] 整体获取失败，原因: {str(e)}，回退到 Mock 数据")
-        return {
-            "5m": {"close": 4120, "volume": 120000},
-            "30m": {"close": 4115, "volume": 85000},
-            "1d": {"close": 4100, "volume": 350000}
-        }
 
 
 class TAState(TypedDict):
@@ -147,7 +84,6 @@ class TAState(TypedDict):
 def create_initial_state(symbol: str = "RB2605") -> TAState:
     now = datetime.now()
     use_mock = os.getenv("USE_MOCK_OBSERVATION", "true").lower() == "true"
-
     return TAState(
         current_symbol=symbol,
         messages=[],
@@ -198,45 +134,41 @@ def initialize_state(state: TAState) -> TAState:
 def data_ingestion(state: TAState) -> TAState:
     state["iteration"] += 1
     print(f"\n[第 {state['iteration']} 轮] 数据获取阶段")
-
-    if state["data_source"] == "tushare":
-        state["market_data"] = get_real_tushare_data(state["current_symbol"], state["timeframes"])
-    else:
+    if state["data_source"] == "mock":
         print("  → 使用 Mock 数据")
-        state["market_data"] = {
-            "5m": {"close": 4120, "volume": 120000},
-            "30m": {"close": 4115, "volume": 85000},
-            "1d": {"close": 4100, "volume": 350000}
-        }
+        state["market_data"] = {"5m": {"close": 4120}, "30m": {"close": 4115}, "1d": {"close": 4100}}
+    else:
+        print("  → 使用真实 Tushare 数据（待实现）")
+        state["market_data"] = {"5m": {"close": 4120}, "30m": {"close": 4115}, "1d": {"close": 4100}}
     return state
 
 
 def structured_observation(state: TAState) -> TAState:
     print(f"[第 {state['iteration']} 轮] 结构化市场观察")
-    relevant_rules = get_relevant_playbook_rules("量仓 支撑 阻力")
-    if relevant_rules:
-        print(f"  → 参考 Playbook 规则: {relevant_rules}")
-
-    state["observations"].append({
-        "volume_position_change": "放量增仓",
-        "key_levels": [4080, 4150],
-        "atr_status": "正常区间"
-    })
+    state["observations"].append({"volume_position_change": "放量增仓", "key_levels": [4080, 4150]})
     return state
 
 
 def signal_generation(state: TAState) -> TAState:
     print(f"[第 {state['iteration']} 轮] 生成交易信号")
-    relevant_rules = get_relevant_playbook_rules("止损 量仓 时间框架")
-    if relevant_rules:
-        print(f"  → 参考 Playbook 规则: {relevant_rules}")
+
+    # 打印当前发送给 LLM 的 Prompt
+    print("\n" + "-"*50)
+    print("[LLM Prompt] 当前发送给大模型的完整 Prompt：")
+    for msg in state["messages"]:
+        print(f"[{msg['role']}] {msg['content'][:300]}..." if len(msg.get('content', '')) > 300 else f"[{msg['role']}] {msg['content']}")
+    print("-"*50)
+
+    # 这里模拟 LLM 返回（实际项目中可替换为真实 LLM 调用）
+    llm_response = "根据当前量仓和多时间框架分析，建议做多，止损设在 4080。"
+    print(f"[LLM Response] 大模型返回：{llm_response}\n")
 
     state["signals"].append({
         "direction": "多头",
         "entry": 4125,
         "stop_loss": 4080,
         "timeframe": "30m",
-        "reason": "量价齐升 + 关键支撑"
+        "reason": llm_response
     })
     state["confidence"] = round(0.65 + (state["iteration"] * 0.08), 2)
     return state
@@ -244,24 +176,11 @@ def signal_generation(state: TAState) -> TAState:
 
 def quality_sensor(state: TAState) -> TAState:
     print(f"[第 {state['iteration']} 轮] 质量检查 (Sensors)")
-
-    relevant_rules = get_relevant_playbook_rules("风险 止损")
-    if relevant_rules:
-        print(f"  → 参考 Playbook 规则: {relevant_rules}")
-
     issues = []
-
-    # 更智能的问题检测
     if len(state["observations"]) < 2:
         issues.append("观察数据不足（当前仅1条结构化观察）")
-
     if state["confidence"] < 0.75:
         issues.append(f"置信度偏低（当前 {state['confidence']:.0%}），建议继续分析")
-
-    # 新增：检查市场数据是否有效
-    valid_data_count = sum(1 for tf_data in state["market_data"].values() if tf_data.get("close", 0) > 0)
-    if valid_data_count < 2:
-        issues.append("多时间框架有效数据不足")
 
     state["issues"] = issues
     state["risk_assessment"] = {"issues_count": len(issues), "issues": issues}
@@ -269,7 +188,6 @@ def quality_sensor(state: TAState) -> TAState:
 
     if issues:
         print(f"  → 发现的问题: {issues}")
-
     return state
 
 
@@ -293,6 +211,7 @@ def final_output(state: TAState) -> TAState:
         print("\n最终交易信号:")
         for sig in state["signals"][-1:]:
             print(f"  • {sig['direction']} | 入场 {sig['entry']} | 止损 {sig.get('stop_loss')}")
+            print(f"    LLM 理由: {sig.get('reason', '')}")
 
     if state["issues"]:
         print("\n⚠️  最终仍存在的问题:")
@@ -300,7 +219,6 @@ def final_output(state: TAState) -> TAState:
             print(f"  • {issue}")
     else:
         print("\n✅ 分析完成，未发现明显问题")
-
     print("="*70)
     return state
 
@@ -315,7 +233,6 @@ def persist(state: TAState) -> TAState:
 # ==================== 构建 Graph ====================
 def build_graph():
     workflow = StateGraph(TAState)
-
     workflow.add_node("initialize", initialize_state)
     workflow.add_node("data_ingestion", data_ingestion)
     workflow.add_node("observation", structured_observation)
@@ -332,11 +249,8 @@ def build_graph():
 
     workflow.add_conditional_edges(
         "quality_sensor",
-        should_continue,
-        {
-            "continue": "data_ingestion",
-            "finalize": "final_output"
-        }
+        lambda s: "continue" if len(s["issues"]) > 0 and s["iteration"] < s["max_rounds"] else "finalize",
+        {"continue": "data_ingestion", "finalize": "final_output"}
     )
 
     workflow.add_edge("final_output", "persist")
@@ -348,7 +262,7 @@ def build_graph():
 
 
 if __name__ == "__main__":
-    print("=== EA Agent - 多轮分析版（智能问题检测 + 详细日志）===\n")
+    print("=== EA Agent - Prompt & LLM 透明版 ===\n")
     app = build_graph()
     state = create_initial_state("RB2605")
     config = {"configurable": {"thread_id": state["thread_id"]}}

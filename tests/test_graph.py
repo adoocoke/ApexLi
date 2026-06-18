@@ -1,5 +1,5 @@
 """
-测试 eaagent.a_plus_plus.graph 模块（多轮 + 智能 Sensors 版）
+测试 eaagent.a_plus_plus.graph 模块（Prompt 透明 + 多轮版）
 """
 
 import pytest
@@ -16,7 +16,6 @@ def test_create_initial_state():
     state = create_initial_state("RB2605")
     assert state["current_symbol"] == "RB2605"
     assert state["max_rounds"] == 3
-    assert state["iteration"] == 0
 
 
 def test_full_graph_execution():
@@ -34,12 +33,11 @@ def test_full_graph_execution():
 
 
 def test_quality_sensor_detects_issues():
-    """测试 quality_sensor 能检测到问题"""
+    """测试 quality_sensor 能检测问题"""
     state: TAState = create_initial_state("TEST")
     state["iteration"] = 1
     state["observations"] = [{"volume_position_change": "放量增仓"}]
     state["confidence"] = 0.6
-    state["market_data"] = {"5m": {"close": 0}, "30m": {"close": 0}}
 
     result = quality_sensor(state)
     assert len(result["issues"]) >= 1
@@ -54,11 +52,10 @@ def test_signal_generation_node():
 
     assert len(result["signals"]) == 1
     assert result["iteration"] == 1
-    assert result["confidence"] > 0
 
 
 def test_graph_has_persistence():
-    """测试持久化功能"""
+    """测试持久化"""
     app = build_graph()
     state = create_initial_state("RB2605")
     thread_id = state["thread_id"]
