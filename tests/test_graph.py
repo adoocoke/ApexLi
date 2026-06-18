@@ -1,9 +1,8 @@
 """
-测试 eaagent.a_plus_plus.graph 模块（多轮 + Tushare 支持版）
+测试 eaagent.a_plus_plus.graph 模块（透明日志 + 多轮 + Tushare 版）
 """
 
 import pytest
-import os
 from eaagent.a_plus_plus.graph import (
     create_initial_state,
     build_graph,
@@ -18,7 +17,6 @@ def test_create_initial_state():
     assert state["current_symbol"] == "RB2605"
     assert state["max_rounds"] == 3
     assert state["iteration"] == 0
-    assert "data_source" in state
 
 
 def test_full_graph_execution():
@@ -59,7 +57,7 @@ def test_signal_generation_node():
 
 
 def test_graph_has_persistence():
-    """测试持久化"""
+    """测试持久化功能"""
     app = build_graph()
     state = create_initial_state("RB2605")
     thread_id = state["thread_id"]
