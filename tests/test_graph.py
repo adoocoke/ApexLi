@@ -1,8 +1,9 @@
 """
-测试 eaagent.a_plus_plus.graph 模块（多轮分析版）
+测试 eaagent.a_plus_plus.graph 模块（多轮 + Tushare 支持版）
 """
 
 import pytest
+import os
 from eaagent.a_plus_plus.graph import (
     create_initial_state,
     build_graph,
@@ -17,10 +18,11 @@ def test_create_initial_state():
     assert state["current_symbol"] == "RB2605"
     assert state["max_rounds"] == 3
     assert state["iteration"] == 0
+    assert "data_source" in state
 
 
 def test_full_graph_execution():
-    """测试完整多轮流程能否正常跑完"""
+    """测试完整多轮流程"""
     app = build_graph()
     state = create_initial_state("RB2605")
     config = {"configurable": {"thread_id": state["thread_id"]}}
@@ -34,7 +36,7 @@ def test_full_graph_execution():
 
 
 def test_quality_sensor_detects_issues():
-    """测试 quality_sensor 能检测到问题"""
+    """测试 quality_sensor 能检测问题"""
     state: TAState = create_initial_state("TEST")
     state["iteration"] = 1
     state["observations"] = [{"volume_position_change": "放量增仓"}]
@@ -57,7 +59,7 @@ def test_signal_generation_node():
 
 
 def test_graph_has_persistence():
-    """测试持久化功能"""
+    """测试持久化"""
     app = build_graph()
     state = create_initial_state("RB2605")
     thread_id = state["thread_id"]
@@ -66,6 +68,5 @@ def test_graph_has_persistence():
     result1 = app.invoke(state, config)
     assert result1["is_done"] is True
 
-    # 使用相同 thread_id 应该能恢复
     result2 = app.invoke({"messages": []}, config)
     assert result2 is not None

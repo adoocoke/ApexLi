@@ -1,6 +1,6 @@
 """
 eaagent/a_plus_plus/graph.py
-高质量自动分析版 + 多轮循环 + 健壮 Playbook 加载（最终版）
+高质量自动分析版 + 多轮循环 + 真实 Tushare 数据支持
 """
 
 from __future__ import annotations
@@ -11,8 +11,7 @@ import os
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
-
-# ==================== Playbook 加载（支持多种路径） ====================
+# ==================== Playbook 加载 ====================
 PLAYBOOK_CONTENT = None
 PLAYBOOK_LOADED = False
 
@@ -20,11 +19,9 @@ def load_playbook() -> bool:
     global PLAYBOOK_CONTENT, PLAYBOOK_LOADED
 
     possible_paths = [
-        "artifacts/trading_playbook_v3.md",           # 你本地实际位置
-        "artifacts/playbooks/trading_playbook_v3.md", # CI 默认位置
+        "artifacts/trading_playbook_v3.md",
+        "artifacts/playbooks/trading_playbook_v3.md",
         "trading_playbook_v3.md",
-        os.path.expanduser("~/trading_playbook_v3.md"),
-        "../trading_playbook_v3.md",
     ]
 
     for path in possible_paths:
@@ -39,8 +36,47 @@ def load_playbook() -> bool:
                 print(f"[Playbook] 读取失败: {e}")
                 return False
 
-    print("[Playbook] ❌ 未找到 trading_playbook_v3.md，将使用默认规则")
+    print("[Playbook] ❌ 未找到 trading_playbook_v3.md")
     return False
+
+
+# ==================== Tushare 数据获取 ====================
+def get_real_tushare_data(symbol: str, timeframes: List[str]) -> Dict[str, Any]:
+    """尝试获取真实 Tushare 期货数据"""
+    try:
+        import tushare as ts
+        token = os.getenv("TUSHARE_TOKEN")
+        if not token:
+            raise ValueError("TUSHARE_TOKEN 环境变量未设置")
+
+        ts.set_token(token)
+        pro = ts.pro_api()
+
+        data = {}
+        for tf in timeframes:
+            # 这里简化处理，实际项目中可根据 timeframes 做更精细的获取
+            df = pro.fut_daily(ts_code=symbol, start_date='20240601', end_date='20240618')
+            if not df.empty:
+                latest = df.iloc[-1]
+                data[tf] = {
+                    "close": float(latest['close']),
+                    "volume": int(latest.get('vol', 0)),
+                    "open": float(latest.get('open', 0)),
+                    "high": float(latest.get('high', 0)),
+                    "low": float(latest.get('low', 0)),
+                }
+            else:
+                data[tf] = {"close": 0, "volume": 0}
+
+        return data
+
+    except Exception as e:
+        print(f"[Tushare] 获取失败: {e}，回退到 Mock 数据")
+        return {
+            "5m": {"close": 4120, "volume": 120000},
+            "30m": {"close": 4115, "volume": 85000},
+            "1d": {"close": 4100, "volume": 350000}
+        }
 
 
 class TAState(TypedDict):
@@ -118,15 +154,13 @@ def data_ingestion(state: TAState) -> TAState:
     state["iteration"] += 1
     print(f"\n[第 {state['iteration']} 轮] 数据获取阶段")
 
-    if state["data_source"] == "mock":
-        print("  → 使用 Mock 数据")
-        state["market_data"] = {
-            "5m": {"close": 4120, "volume": 120000},
-            "30m": {"close": 4115, "volume": 85000},
-            "1d": {"close": 4100, "volume": 350000}
-        }
+    if state["data_source"] == "tushare":
+        print("  → 尝试使用真实 Tushare 数据")
+        state["market_data"] = get_real_tushare_data(
+            state["current_symbol"], state["timeframes"]
+        )
     else:
-        print("  → 使用真实 Tushare 数据（待实现）")
+        print("  → 使用 Mock 数据")
         state["market_data"] = {
             "5m": {"close": 4120, "volume": 120000},
             "30m": {"close": 4115, "volume": 85000},
@@ -248,7 +282,7 @@ def build_graph():
 
 
 if __name__ == "__main__":
-    print("=== EA Agent - 多轮分析版（真实 Playbook 支持）===\n")
+    print("=== EA Agent - 多轮分析版（真实 Tushare 支持）===\n")
     app = build_graph()
     state = create_initial_state("RB2605")
     config = {"configurable": {"thread_id": state["thread_id"]}}
