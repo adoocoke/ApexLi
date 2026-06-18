@@ -1,6 +1,6 @@
 """配置常量"""
 
-MAX_ROUNDS = 3
+MAX_ROUNDS = 5
 
 # Mock 默认数据
 DEFAULT_MOCK_DATA = {

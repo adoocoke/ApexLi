@@ -1,5 +1,5 @@
 """
-测试 eaagent.a_plus_plus.graph 模块（Prompt 透明 + 多轮版）
+测试 eaagent.a_plus_plus.graph 模块
 """
 
 import pytest
@@ -15,7 +15,8 @@ from eaagent.a_plus_plus.graph import (
 def test_create_initial_state():
     state = create_initial_state("RB2605")
     assert state["current_symbol"] == "RB2605"
-    assert state["max_rounds"] == 3
+    assert state["max_rounds"] == 5          # 已改为5轮
+    assert state["iteration"] == 0
 
 
 def test_full_graph_execution():
