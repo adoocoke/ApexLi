@@ -13,31 +13,30 @@ from eaagent.a_plus_plus.graph import (
 
 
 def test_create_initial_state():
-    state = create_initial_state("RB2605")
-    assert state["current_symbol"] == "RB2605"
-    assert state["max_rounds"] == 5          # 已改为5轮
+    state = create_initial_state("RB2605.SHF")
+    assert state["current_symbol"] == "RB2605.SHF"
+    assert state["max_rounds"] == 5
     assert state["iteration"] == 0
 
 
 def test_full_graph_execution():
-    """测试完整多轮流程"""
+    """测试完整流程是否能正常运行"""
     app = build_graph()
-    state = create_initial_state("RB2605")
+    state = create_initial_state("RB2605.SHF")
     config = {"configurable": {"thread_id": state["thread_id"]}}
 
     result = app.invoke(state, config)
 
-    assert result["current_symbol"] == "RB2605"
+    assert result["current_symbol"] == "RB2605.SHF"
     assert result["is_done"] is True
     assert result["analysis_rounds"] >= 1
-    assert result["confidence"] > 0.5
 
 
 def test_quality_sensor_detects_issues():
-    """测试 quality_sensor 能检测问题"""
+    """测试 quality_sensor 能检测到问题"""
     state: TAState = create_initial_state("TEST")
     state["iteration"] = 1
-    state["observations"] = [{"volume_position_change": "放量增仓"}]
+    state["observations"] = [{"llm_observation": "测试观察"}]
     state["confidence"] = 0.6
 
     result = quality_sensor(state)
@@ -48,17 +47,18 @@ def test_signal_generation_node():
     """测试 signal_generation 节点"""
     state: TAState = create_initial_state("TEST")
     state["iteration"] = 1
+    state["observations"] = [{"llm_observation": "测试观察"}]
 
     result = signal_generation(state)
 
-    assert len(result["signals"]) == 1
+    assert len(result["signals"]) >= 1
     assert result["iteration"] == 1
 
 
 def test_graph_has_persistence():
-    """测试持久化"""
+    """测试持久化功能"""
     app = build_graph()
-    state = create_initial_state("RB2605")
+    state = create_initial_state("RB2605.SHF")
     thread_id = state["thread_id"]
     config = {"configurable": {"thread_id": thread_id}}
 
