@@ -1,6 +1,6 @@
 """
 eaagent/a_plus_plus/graph.py
-高质量自动分析版 + 多轮循环 + 真实 Playbook 加载
+高质量自动分析版 + 多轮循环 + 健壮 Playbook 加载（最终版）
 """
 
 from __future__ import annotations
@@ -11,31 +11,35 @@ import os
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
-# ==================== Playbook 加载逻辑 ====================
+
+# ==================== Playbook 加载（支持多种路径） ====================
 PLAYBOOK_CONTENT = None
 PLAYBOOK_LOADED = False
 
-def load_playbook():
-    """尝试加载真实 Playbook"""
+def load_playbook() -> bool:
     global PLAYBOOK_CONTENT, PLAYBOOK_LOADED
-    
+
     possible_paths = [
-        "artifacts/playbooks/trading_playbook_v3.md",
+        "artifacts/trading_playbook_v3.md",           # 你本地实际位置
+        "artifacts/playbooks/trading_playbook_v3.md", # CI 默认位置
         "trading_playbook_v3.md",
+        os.path.expanduser("~/trading_playbook_v3.md"),
         "../trading_playbook_v3.md",
     ]
-    
+
     for path in possible_paths:
         if os.path.exists(path):
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     PLAYBOOK_CONTENT = f.read()
                 PLAYBOOK_LOADED = True
+                print(f"[Playbook] ✅ 成功加载: {path}")
                 return True
             except Exception as e:
-                print(f"[Playbook] 加载失败: {e}")
+                print(f"[Playbook] 读取失败: {e}")
                 return False
-    
+
+    print("[Playbook] ❌ 未找到 trading_playbook_v3.md，将使用默认规则")
     return False
 
 
@@ -100,13 +104,10 @@ def initialize_state(state: TAState) -> TAState:
     print(f"[初始化] 开始分析 {state['current_symbol']}")
     print(f"  - 数据来源: {state['data_source'].upper()}")
 
-    # 加载 Playbook
     if load_playbook():
         state["playbook_used"] = True
-        print("  - Playbook: ✅ 已成功加载 trading_playbook_v3.md")
     else:
         state["playbook_used"] = False
-        print("  - Playbook: ❌ 未加载（使用默认规则）")
 
     print(f"  - 最大分析轮次: {state['max_rounds']}")
     print("="*70)
