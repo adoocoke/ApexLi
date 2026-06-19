@@ -55,3 +55,4 @@ reproduce_tushare_issue.py
 *.md
 !design/**/*.md
 !README.md
+!todo/**/*.md

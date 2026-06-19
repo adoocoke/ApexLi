@@ -19,6 +19,7 @@ from .config import MAX_ROUNDS
 # ==================== 导入工具模块 ====================
 from .utils.llm import call_llm
 from .utils.console import color_print, Colors
+from .nodes import persist
 
 
 class TAState(TypedDict):
@@ -291,12 +292,6 @@ def final_output(state: TAState) -> TAState:
     print("="*70)
     return state
 
-
-def persist(state: TAState) -> TAState:
-    print("[结束] 保存分析结果...")
-    state["artifacts"].append(f"report_{state['thread_id']}.md")
-    state["is_done"] = True
-    return state
 
 
 def build_graph():
