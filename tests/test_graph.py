@@ -94,9 +94,11 @@ def test_multi_round_logs_current_playbook_strategy(capfd, monkeypatch):
 
     app = build_graph()
     state = create_initial_state("RB2605.SHF")
+    thread_id = state["thread_id"]
+    config = {"configurable": {"thread_id": thread_id}}
 
-    # 执行完整流程
-    result = app.invoke(state)
+    # 执行完整流程（必须传 config）
+    result = app.invoke(state, config)
 
     captured = capfd.readouterr()
     output = captured.out
