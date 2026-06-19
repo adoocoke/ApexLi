@@ -1,13 +1,13 @@
 """
 eaagent/a_plus_plus/graph.py
-重构后版本（使用 utils 模块）
+重构后版本 - Harness 核心逻辑
 """
 
 from __future__ import annotations
 from typing import TypedDict, List, Dict, Any, Optional, Literal
 from datetime import datetime
 import os
-import pandas as pd
+import json
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -15,40 +15,15 @@ from langgraph.checkpoint.memory import MemorySaver
 from .data_provider import get_market_data, get_historical_data
 from .playbook_loader import load_playbook, build_playbook_prompt, get_relevant_playbook_rules, get_playbook_id, PLAYBOOK_CONTENT
 from .config import MAX_ROUNDS
+from .types import TAState
 
-# ==================== 导入工具模块 ====================
+# ==================== 工具模块 ====================
 from .utils.llm import call_llm
 from .utils.console import color_print, Colors
-from .nodes import persist
 
-
-class TAState(TypedDict):
-    current_symbol: str
-    messages: List[dict]
-    thread_id: str
-    timeframes: List[str]
-    market_data: Dict[str, Any]
-    observations: List[dict]
-    patterns: List[dict]
-    signals: List[dict]
-    risk_assessment: Dict[str, Any]
-    confidence: float
-    artifacts: List[str]
-    issues: List[str]
-    verification_result: Optional[dict]
-    human_feedback: Optional[str]
-    iteration: int
-    is_done: bool
-    created_at: datetime
-    last_updated: datetime
-    data_source: str
-    playbook_used: bool
-    analysis_rounds: int
-    max_rounds: int
-    critique_result: Optional[dict]
-    reason_count: int
-    playbook_id: str
-    playbook_content_sent: bool
+# ==================== 节点模块 ====================
+from .nodes import persist, data_ingestion
+from .nodes.observation import structured_observation
 
 
 def create_initial_state(symbol: str = "RB2605.SHF") -> TAState:
@@ -85,9 +60,9 @@ def create_initial_state(symbol: str = "RB2605.SHF") -> TAState:
 
 
 def initialize_state(state: TAState) -> TAState:
-    print("\n" + "="*70)
-    print(f"[初始化] 开始分析 {state['current_symbol']}")
-    print(f"  - 数据来源: {state['data_source'].upper()}")
+    color_print("\n" + "="*70, Colors.BOLD)
+    color_print(f"[初始化] 开始分析 {state['current_symbol']}", Colors.BOLD)
+    color_print(f"  - 数据来源: {state['data_source'].upper()}", Colors.OKCYAN)
 
     if load_playbook():
         state["playbook_used"] = True
@@ -100,73 +75,33 @@ def initialize_state(state: TAState) -> TAState:
         playbook_id = get_playbook_id(PLAYBOOK_CONTENT)
         state["playbook_id"] = playbook_id
 
-        # 根据环境变量选择策略模式
         strategy_mode = os.getenv("PLAYBOOK_STRATEGY", "full").lower()
 
         if not state.get("playbook_content_sent", False):
             if strategy_mode == "core":
                 strategy = CoreRulesStrategy()
-                print(f"[Playbook] 使用核心规则策略，ID: {playbook_id}")
+                color_print(f"[Playbook] 使用核心规则策略，ID: {playbook_id}", Colors.OKGREEN)
             else:
                 strategy = FullPlaybookStrategy()
-                print(f"[Playbook] 使用完整策略，ID: {playbook_id}")
+                color_print(f"[Playbook] 使用完整策略，ID: {playbook_id}", Colors.OKGREEN)
 
             state["playbook_content_sent"] = True
         else:
             strategy = IdOnlyStrategy()
-            print(f"[Playbook] 使用 ID 策略，ID: {playbook_id}")
+            color_print(f"[Playbook] 使用 ID 策略，ID: {playbook_id}", Colors.OKCYAN)
 
         system_prompt = strategy.get_system_prompt(PLAYBOOK_CONTENT, playbook_id)
         state["messages"].append({"role": "system", "content": system_prompt})
     else:
         state["playbook_used"] = False
 
-    print(f"  - 最大分析轮次: {state['max_rounds']}")
-    print("="*70)
-    return state
-
-
-def data_ingestion(state: TAState) -> TAState:
-    state["iteration"] += 1
-    print(f"\n[第 {state['iteration']} 轮] 数据获取阶段")
-    state["market_data"] = get_market_data(
-        state["data_source"], state["current_symbol"], state["timeframes"]
-    )
-    return state
-
-
-def structured_observation(state: TAState) -> TAState:
-    print(f"[第 {state['iteration']} 轮] 结构化市场观察（发送全部历史数据给 Grok）")
-
-    df = get_historical_data(
-        symbol=state['current_symbol'],
-        data_source=state['data_source']
-    )
-
-    if df.empty:
-        prompt = "历史数据为空，请给出简化观察。"
-    else:
-        data_str = df.to_csv(index=False)
-        prompt = f"""以下是 {state['current_symbol']} 的完整历史日线数据（CSV 格式）：
-
-{data_str}
-
-请基于以上全部历史数据进行专业的技术分析，包括：
-1. 整体趋势判断
-2. 关键压力位和支撑位
-3. 量价关系分析
-4. 重要形态或转折特征
-5. 结构化观察结论"""
-
-    system_prompt = state["messages"][0]["content"] if state["messages"] else ""
-    response = call_llm(prompt, system_prompt)
-
-    state["observations"].append({"llm_observation": response})
+    color_print(f"  - 最大分析轮次: {state['max_rounds']}", Colors.OKCYAN)
+    color_print("="*70, Colors.BOLD)
     return state
 
 
 def signal_generation(state: TAState) -> TAState:
-    print(f"[第 {state['iteration']} 轮] 生成交易信号（Grok 分析）")
+    color_print(f"[第 {state['iteration']} 轮] 生成交易信号（Grok 分析）", Colors.OKGREEN)
 
     obs = state["observations"][-1] if state["observations"] else {}
     relevant_rules = get_relevant_playbook_rules("量仓 止损")
@@ -188,17 +123,14 @@ def signal_generation(state: TAState) -> TAState:
     system_prompt = state["messages"][0]["content"] if state["messages"] else ""
     response = call_llm(prompt, system_prompt)
 
-    # 尝试解析 JSON
-    import json
     try:
         signal_data = json.loads(response)
     except json.JSONDecodeError:
-        # 如果解析失败，使用默认结构
         signal_data = {
             "direction": "观望",
-            "entry_zone": "无法解析",
-            "stop_loss": "无法解析",
-            "target": "无法解析",
+            "entry_zone": "解析失败",
+            "stop_loss": "解析失败",
+            "target": "解析失败",
             "reason": response
         }
 
@@ -206,20 +138,17 @@ def signal_generation(state: TAState) -> TAState:
     state["confidence"] = round(0.65 + (state["iteration"] * 0.08), 2)
     return state
 
+
 def quality_sensor(state: TAState) -> TAState:
-    print(f"[第 {state['iteration']} 轮] 质量检查 (Sensors)")
+    color_print(f"[第 {state['iteration']} 轮] 质量检查 (Sensors)", Colors.WARNING)
 
     issues = []
-    latest_obs = state["observations"][-1] if state["observations"] else {}
     latest_signal = state["signals"][-1] if state["signals"] else {}
-
-    # 改进判断逻辑
-    if len(state["observations"]) < 2:
-        issues.append("观察数据不足（当前仅1条结构化观察）")
-
-    # 如果 LLM 已经给出详细分析且包含止损/风险控制，则不报置信度低
     reason = latest_signal.get("reason", "")
     has_risk_control = any(kw in reason for kw in ["止损", "风险", "仓位", "轻仓"])
+
+    if len(state["observations"]) < 2:
+        issues.append("观察数据不足（当前仅1条结构化观察）")
 
     if state["confidence"] < 0.75 and not has_risk_control:
         issues.append(f"置信度偏低（当前 {state['confidence']:.0%}），建议继续分析")
@@ -229,15 +158,15 @@ def quality_sensor(state: TAState) -> TAState:
     state["analysis_rounds"] = state["iteration"]
 
     if issues:
-        print(f"  → 发现的问题: {issues}")
+        color_print(f"  → 发现的问题: {issues}", Colors.FAIL)
     else:
-        print("  → 未发现明显问题")
+        color_print("  → 未发现明显问题", Colors.OKGREEN)
 
     return state
 
 
 def llm_critique(state: TAState) -> TAState:
-    print(f"\n[第 {state['iteration']} 轮] LLM Critique（Grok 审查）")
+    color_print(f"\n[第 {state['iteration']} 轮] LLM Critique（Grok 审查）", Colors.HEADER)
 
     prompt = f"""你是一个严格的风险审查员。
 
@@ -245,7 +174,7 @@ def llm_critique(state: TAState) -> TAState:
 - 轮次: {state['iteration']}
 - 置信度: {state['confidence']}
 - 已发现问题: {state['issues']}
-- 最新信号理由: {state['signals'][-1]['reason'] if state['signals'] else '无'}
+- 最新信号: {state['signals'][-1] if state['signals'] else '无'}
 
 请判断是否建议继续下一轮分析，并给出理由。
 
@@ -270,28 +199,28 @@ def should_continue_after_critique(state: TAState) -> Literal["continue", "final
 
 
 def final_output(state: TAState) -> TAState:
-    print("\n" + "="*70)
-    print(f"【{state['current_symbol']} 技术分析报告】（共 {state['analysis_rounds']} 轮）")
-    print("="*70)
-    print(f"数据来源: {state['data_source'].upper()}")
-    print(f"Playbook 使用: {'是' if state['playbook_used'] else '否'}")
-    print(f"实际分析轮次: {state['analysis_rounds']}")
+    color_print("\n" + "="*70, Colors.BOLD)
+    color_print(f"【{state['current_symbol']} 技术分析报告】（共 {state['analysis_rounds']} 轮）", Colors.BOLD)
+    color_print("="*70, Colors.BOLD)
+
+    color_print(f"数据来源: {state['data_source'].upper()}", Colors.OKCYAN)
+    color_print(f"Playbook 使用: {'是' if state['playbook_used'] else '否'}", Colors.OKCYAN)
+    color_print(f"实际分析轮次: {state['analysis_rounds']}", Colors.OKCYAN)
 
     if state["signals"]:
-        print("\n最终交易信号:")
-        for sig in state["signals"][-1:]:
-            print(f"  • {sig['direction']} | 理由: {sig.get('reason', '')}")
+        last_signal = state["signals"][-1]
+        color_print("\n最终交易信号:", Colors.OKGREEN)
+        print(json.dumps(last_signal, ensure_ascii=False, indent=2))
 
     if state["issues"]:
-        print("\n⚠️  最终问题:")
+        color_print("\n⚠️  最终问题:", Colors.FAIL)
         for issue in state["issues"]:
             print(f"  • {issue}")
     else:
-        print("\n✅ 分析完成")
+        color_print("\n✅ 分析完成", Colors.OKGREEN)
 
-    print("="*70)
+    color_print("="*70, Colors.BOLD)
     return state
-
 
 
 def build_graph():
@@ -328,7 +257,7 @@ def build_graph():
 
 
 if __name__ == "__main__":
-    print("=== EA Agent - 测试优化版 ===\n")
+    color_print("=== EA Agent - Harness 重构版 ===", Colors.BOLD)
     app = build_graph()
     state = create_initial_state("RB2605.SHF")
     config = {"configurable": {"thread_id": state["thread_id"]}}
