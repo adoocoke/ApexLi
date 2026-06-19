@@ -57,134 +57,178 @@ journey
 
 ---
 
-## 3. User Stories (正式格式)
+## 3. User Stories (正式格式 - GitHub Issue 可直接使用)
 
 ### Epic 1: 结构化 LLM 沟通 (P0)
 
-**EA-001: 结构化市场观察输出**
+#### EA-001
 
+**Title:** EA-001: 结构化市场观察输出
+
+**Body:**
+```markdown
 **As a** 期货交易者  
 **I want** 系统输出的市场观察是结构化的（包含趋势、关键位、量价关系、结论等）  
 **So that** 我能快速理解当前市场状态，而不是阅读大段文字。
 
-**验收标准**
+### 验收标准
 - [ ] `structured_observation` 返回符合指定 JSON Schema 的结构化数据
 - [ ] 包含 `trend`、`key_levels`、`volume_analysis`、`conclusion`、`risk_note`、`playbook_references` 等字段
 - [ ] JSON 解析失败时有拡底处理机制
 - [ ] 结构化结果被正确存入 `state["observations"]`
 - [ ] 最终报告中以清晰格式展示结构化观察结果
 
-**Priority**: P0  |  **Size**: M
+**Epic**: Structured LLM Communication  
+**Priority**: P0  
+**Size**: M
+```
 
----
+#### EA-002
 
-**EA-002: 结构化交易信号输出**
+**Title:** EA-002: 结构化交易信号输出
 
+**Body:**
+```markdown
 **As a** 交易系统  
 **I want** `signal_generation` 输出结构化的交易建议（方向、入场、止损、理由）  
 **So that** 下游组件和人工 review 能可靠消费结果。
 
-**验收标准**
+### 验收标准
 - [ ] 输出包含 `direction`、`entry_zone`、`stop_loss`、`target`、`reason` 的 JSON
 - [ ] `reason` 字段需引用 Playbook 相关逻辑
 - [ ] JSON 解析失败时有拡底结构
 - [ ] 最终报告中以结构化方式展示交易建议
 
-**Priority**: P0  |  **Size**: M
+**Epic**: Structured LLM Communication  
+**Priority**: P0  
+**Size**: M
+```
 
----
+#### EA-003
 
-**EA-003: 结构化 Critique 判断**
+**Title:** EA-003: 结构化 Critique 判断
 
+**Body:**
+```markdown
 **As a** 系统  
 **I want** `llm_critique` 能引用结构化 Observation 中的关键信息进行判断  
 **So that** 继续/停止的决策更有依据。
 
-**Priority**: P1  |  **Size**: S
-
----
+**Priority**: P1  
+**Size**: S
+```
 
 ### Epic 2: 多轮智能分析闭环 (P0)
 
-**EA-004: 智能多轮分析控制**
+#### EA-004
 
+**Title:** EA-004: 智能多轮分析控制
+
+**Body:**
+```markdown
 **As a** 交易者  
 **I want** 系统能在分析质量不足时自动进行下一轮分析  
 **So that** 我能获得更可靠的结论，而不需要手动干预。
 
-**验收标准**
+### 验收标准
 - [ ] `quality_sensor` 能检测“观察数据不足”和“置信度偏低”
 - [ ] `llm_critique` 能基于当前结果判断是否继续
 - [ ] 系统可自动进入下一轮，最多不超过最大轮次
 - [ ] 最终报告中展示实际进行的分析轮次
 
-**Priority**: P0  |  **Size**: L
+**Priority**: P0  
+**Size**: L
+```
 
----
+#### EA-005
 
-**EA-005: 最终报告展示多轮分析路径**
+**Title:** EA-005: 最终报告展示多轮分析路径
 
+**Body:**
+```markdown
 **As a** 交易者  
 **I want** 在最终报告中看到完整的多轮分析过程  
 **So that** 我能理解系统是如何逐步优化的。
 
-**Priority**: P1  |  **Size**: M
-
----
+**Priority**: P1  
+**Size**: M
+```
 
 ### Epic 3: Playbook Strategy 灵活控制 (P1)
 
-**EA-006: 支持 Core Rules 策略**
+#### EA-006
 
+**Title:** EA-006: 支持 Core Rules 策略
+
+**Body:**
+```markdown
 **As a** 交易者  
 **I want** 能通过配置使用精简核心规则而不是完整 Playbook  
 **So that** 在分析质量和 Token 消耗之间取得平衡。
 
-**Priority**: P1  |  **Size**: M
+**Priority**: P1  
+**Size**: M
+```
 
----
+#### EA-007
 
-**EA-007: 多轮中展示当前 Playbook 策略**
+**Title:** EA-007: 多轮中展示当前 Playbook 策略
 
+**Body:**
+```markdown
 **As a** 交易者  
 **I want** 在分析过程中看到当前使用了哪种 Playbook 策略  
 **So that** 我能理解分析依据。
 
-**Priority**: P2  |  **Size**: S
+**Priority**: P2  
+**Size**: S
+```
 
----
+### Epic 4: 可观测性与用体验 (P1)
 
-### Epic 4: 可观测性与用户体验 (P1)
+#### EA-008
 
-**EA-008: Console 输出颜色区分**
+**Title:** EA-008: Console 输出颜色区分
 
+**Body:**
+```markdown
 **As a** 交易者  
-**I want** 控制台输出使用颜色区分不同轮次和组件  
+**I want** 控到台输出使用颜色区分不同轮次和组件  
 **So that** 我能更清晰地阅读分析过程。
 
-**Priority**: P1  |  **Size**: M
+**Priority**: P1  
+**Size**: M
+```
 
----
+#### EA-009
 
-**EA-009: Sensors 检查结果突出显示**
+**Title:** EA-009: Sensors 检查结果突出显示
 
+**Body:**
+```markdown
 **As a** 交易者  
 **I want** Sensors 检查结果在有问题时用醒目颜色显示  
 **So that** 我能快速关注风险点。
 
-**Priority**: P1  |  **Size**: S
-
----
+**Priority**: P1  
+**Size**: S
+```
 
 ### Epic 5: 工程化与可维护性 (P2)
 
-**EA-010: 节点模块化拆分**
+#### EA-010
 
+**Title:** EA-010: 节点模块化拆分
+
+**Body:**
+```markdown
 **As a** 开发者  
 **I want** 分析节点被拆分成独立模块  
 **So that** 新增或修改某个分析步骤时不会影响其他部分。
 
-**Priority**: P2  |  **Size**: L
+**Priority**: P2  
+**Size**: L
+```
 
 ---
 
