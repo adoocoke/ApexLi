@@ -66,3 +66,46 @@ def test_graph_has_persistence():
 
     result2 = app.invoke({"messages": []}, config)
     assert result2 is not None
+
+
+def test_multi_round_logs_current_playbook_strategy(capfd, monkeypatch):
+    """
+    测试多轮执行时，日志中是否正确输出了当前使用的 Playbook 策略。
+    对应 EA-007 的验收条件。
+    """
+    call_count = {"count": 0}
+
+    def mock_llm_critique(state):
+        """ 模拟 critique 节点，强制执行多轮 """
+        call_count["count"] += 1
+        state["iteration"] = call_count["count"]
+
+        # 前两轮继续，第三轮停止
+        if call_count["count"] < 3:
+            state["should_continue"] = True
+        else:
+            state["should_continue"] = False
+
+        return state
+
+    monkeypatch.setattr(
+        "eaagent.a_plus_plus.graph.llm_critique", mock_llm_critique
+    )
+
+    app = build_graph()
+    state = create_initial_state("RB2605.SHF")
+
+    # 执行完整流程
+    result = app.invoke(state)
+
+    captured = capfd.readouterr()
+    output = captured.out
+
+    # 验证执行了多轮
+    assert call_count["count"] >= 3, "应该至少执行 3 轮"
+
+    # 验证日志中是否输出了 Playbook 策略相关信息
+    assert any(
+        keyword in output
+        for keyword in ["Playbook", "策略", "Core", "Full", "策略ID"]
+    ), "多轮日志中应包含当前 Playbook 策略信息"
