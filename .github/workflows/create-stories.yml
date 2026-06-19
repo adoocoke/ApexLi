@@ -1,0 +1,68 @@
+name: Create User Stories as Issues
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Epic Issues
+        run: |
+          gh issue create --repo ${{ github.repository }} --title "[Epic] Structured LLM Communication" --body "包含 EA-001 ~ EA-003" --label "Epic: Structured-LLM"
+          gh issue create --repo ${{ github.repository }} --title "[Epic] Multi-round Analysis Loop" --body "包含 EA-004 ~ EA-005" --label "Epic: Multi-round-Loop"
+          gh issue create --repo ${{ github.repository }} --title "[Epic] Playbook Strategy" --body "包含 EA-006 ~ EA-007" --label "Epic: Playbook-Strategy"
+          gh issue create --repo ${{ github.repository }} --title "[Epic] Observability" --body "包含 EA-008 ~ EA-009" --label "Epic: Observability"
+          gh issue create --repo ${{ github.repository }} --title "[Epic] Engineering" --body "包含 EA-010" --label "Epic: Engineering"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Story Issues
+        run: |
+          # EA-001
+          gh issue create --repo ${{ github.repository }} \
+            --title "EA-001: 结构化市场观察输出" \
+            --body "**As a** 期货交易者  
+**I want** 系统输出的市场观察是结构化的  
+**So that** 我能快速理解当前市场状态。
+
+### 验收标准
+- [ ] structured_observation 返回符合 JSON Schema
+- [ ] 包含 trend, key_levels, volume_analysis, conclusion 等字段
+- [ ] JSON 解析失败有兜底
+
+**Epic**: Structured LLM Communication  
+**Priority**: P0  
+**Size**: M" \
+            --label "Epic: Structured-LLM,Priority: P0,Type: Story"
+
+          # EA-002
+          gh issue create --repo ${{ github.repository }} \
+            --title "EA-002: 结构化交易信号输出" \
+            --body "**As a** 交易系统  
+**I want** signal_generation 输出结构化交易建议  
+**So that** 下游能可靠消费。
+
+**Epic**: Structured LLM Communication  
+**Priority**: P0  
+**Size**: M" \
+            --label "Epic: Structured-LLM,Priority: P0,Type: Story"
+
+          # EA-004
+          gh issue create --repo ${{ github.repository }} \
+            --title "EA-004: 智能多轮分析控制" \
+            --body "**As a** 交易者  
+**I want** 系统能在质量不足时自动多轮分析  
+**So that** 获得更可靠结论。
+
+**Epic**: Multi-round Analysis Loop  
+**Priority**: P0  
+**Size**: L" \
+            --label "Epic: Multi-round-Loop,Priority: P0,Type: Story"
+
+          # 其他 Story 可以后续补充
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
