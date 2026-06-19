@@ -135,16 +135,25 @@ def initialize_state(state: TAState) -> TAState:
         state["playbook_used"] = True
         from eaagent.a_plus_plus.strategies.playbook_strategies import (
             FullPlaybookStrategy,
+            CoreRulesStrategy,
             IdOnlyStrategy
         )
 
         playbook_id = get_playbook_id(PLAYBOOK_CONTENT)
         state["playbook_id"] = playbook_id
 
+        # 根据环境变量选择策略模式
+        strategy_mode = os.getenv("PLAYBOOK_STRATEGY", "full").lower()
+
         if not state.get("playbook_content_sent", False):
-            strategy = FullPlaybookStrategy()
+            if strategy_mode == "core":
+                strategy = CoreRulesStrategy()
+                print(f"[Playbook] 使用核心规则策略，ID: {playbook_id}")
+            else:
+                strategy = FullPlaybookStrategy()
+                print(f"[Playbook] 使用完整策略，ID: {playbook_id}")
+
             state["playbook_content_sent"] = True
-            print(f"[Playbook] 使用完整策略，ID: {playbook_id}")
         else:
             strategy = IdOnlyStrategy()
             print(f"[Playbook] 使用 ID 策略，ID: {playbook_id}")
