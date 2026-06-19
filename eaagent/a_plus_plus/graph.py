@@ -236,11 +236,21 @@ def signal_generation(state: TAState) -> TAState:
 
 def quality_sensor(state: TAState) -> TAState:
     print(f"[第 {state['iteration']} 轮] 质量检查 (Sensors)")
+
     issues = []
+    latest_obs = state["observations"][-1] if state["observations"] else {}
+    latest_signal = state["signals"][-1] if state["signals"] else {}
+
+    # 改进判断逻辑
     if len(state["observations"]) < 2:
-        issues.append("观察数据不足")
-    if state["confidence"] < 0.75:
-        issues.append(f"置信度偏低（当前 {state['confidence']:.0%}）")
+        issues.append("观察数据不足（当前仅1条结构化观察）")
+
+    # 如果 LLM 已经给出详细分析且包含止损/风险控制，则不报置信度低
+    reason = latest_signal.get("reason", "")
+    has_risk_control = any(kw in reason for kw in ["止损", "风险", "仓位", "轻仓"])
+
+    if state["confidence"] < 0.75 and not has_risk_control:
+        issues.append(f"置信度偏低（当前 {state['confidence']:.0%}），建议继续分析")
 
     state["issues"] = issues
     state["risk_assessment"] = {"issues_count": len(issues), "issues": issues}
@@ -248,6 +258,9 @@ def quality_sensor(state: TAState) -> TAState:
 
     if issues:
         print(f"  → 发现的问题: {issues}")
+    else:
+        print("  → 未发现明显问题")
+
     return state
 
 
