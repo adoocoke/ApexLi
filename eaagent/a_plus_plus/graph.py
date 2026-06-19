@@ -8,6 +8,7 @@ from typing import TypedDict, List, Dict, Any, Optional, Literal
 from datetime import datetime
 import os
 import pandas as pd
+import json
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -26,7 +27,13 @@ from .config import MAX_ROUNDS
 def call_llm(prompt: str, system_prompt: str = "") -> str:
     """调用 Grok（测试模式下直接返回固定字符串，无额外开销）"""
     if os.getenv("USE_MOCK_LLM") == "true":
-        return "根据历史数据分析，当前处于反弹阶段，建议在支撑位附近做多，止损设在 2915。"
+        return json.dumps({
+            "direction": "多头",
+            "entry_zone": "2960-2975（支撑区低吸）",
+            "stop_loss": "2940以下",
+            "target": "3000-3020（第一目标）",
+            "reason": "根据历史数据分析，当前处于反弹阶段，建议在支撑位附近做多，严格执行 Playbook 量仓核心逻辑。"
+        }, ensure_ascii=False)
 
     api_key = os.getenv("XAI_API_KEY")
     if not api_key:
@@ -213,26 +220,40 @@ def signal_generation(state: TAState) -> TAState:
     obs = state["observations"][-1] if state["observations"] else {}
     relevant_rules = get_relevant_playbook_rules("量仓 止损")
 
-    prompt = f"""基于以下观察内容，请给出交易建议：
+    prompt = f"""基于以下观察内容，请给出**结构化交易建议**，并严格按照 JSON 格式返回：
 
 {obs}
 参考 Playbook 规则: {relevant_rules}
 
-请给出结构化交易建议（方向、入场区域、止损、理由）。"""
+请返回以下 JSON 格式（不要有额外文字）：
+{{
+  "direction": "多头 / 空头 / 观望",
+  "entry_zone": "入场区间描述",
+  "stop_loss": "止损描述",
+  "target": "目标 / 减仓区间",
+  "reason": "详细理由（必须引用 Playbook 相关逻辑）"
+}}"""
 
     system_prompt = state["messages"][0]["content"] if state["messages"] else ""
     response = call_llm(prompt, system_prompt)
 
-    state["signals"].append({
-        "direction": "多头" if "多" in response else "空头",
-        "entry": 0,
-        "stop_loss": 0,
-        "timeframe": "1d",
-        "reason": response
-    })
+    # 尝试解析 JSON
+    import json
+    try:
+        signal_data = json.loads(response)
+    except json.JSONDecodeError:
+        # 如果解析失败，使用默认结构
+        signal_data = {
+            "direction": "观望",
+            "entry_zone": "无法解析",
+            "stop_loss": "无法解析",
+            "target": "无法解析",
+            "reason": response
+        }
+
+    state["signals"].append(signal_data)
     state["confidence"] = round(0.65 + (state["iteration"] * 0.08), 2)
     return state
-
 
 def quality_sensor(state: TAState) -> TAState:
     print(f"[第 {state['iteration']} 轮] 质量检查 (Sensors)")
