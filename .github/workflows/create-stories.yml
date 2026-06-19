@@ -9,20 +9,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Create Labels
+        run: |
+          gh label create "Epic: Structured-LLM" --color "0E8A16" --description "Epic for Structured LLM Communication" || true
+          gh label create "Epic: Multi-round-Loop" --color "0E8A16" --description "Epic for Multi-round Analysis" || true
+          gh label create "Epic: Playbook-Strategy" --color "0E8A16" --description "Epic for Playbook Strategy" || true
+          gh label create "Epic: Observability" --color "0E8A16" --description "Epic for Observability" || true
+          gh label create "Epic: Engineering" --color "0E8A16" --description "Epic for Engineering" || true
+          gh label create "Priority: P0" --color "D93F0B" --description "Highest priority" || true
+          gh label create "Priority: P1" --color "FBCA04" --description "High priority" || true
+          gh label create "Priority: P2" --color "0E8A16" --description "Normal priority" || true
+          gh label create "Type: Story" --color "5319E7" --description "User Story" || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create Epics
         run: |
-          gh issue create --repo ${{ github.repository }} --title "[Epic] Structured LLM Communication" --body "包含 EA-001 ~ EA-003" --label "Epic: Structured-LLM"
-          gh issue create --repo ${{ github.repository }} --title "[Epic] Multi-round Analysis Loop" --body "包含 EA-004 ~ EA-005" --label "Epic: Multi-round-Loop"
-          gh issue create --repo ${{ github.repository }} --title "[Epic] Playbook Strategy" --body "包含 EA-006 ~ EA-007" --label "Epic: Playbook-Strategy"
-          gh issue create --repo ${{ github.repository }} --title "[Epic] Observability" --body "包含 EA-008 ~ EA-009" --label "Epic: Observability"
-          gh issue create --repo ${{ github.repository }} --title "[Epic] Engineering" --body "包含 EA-010" --label "Epic: Engineering"
+          gh issue create --repo ${{ github.repository }} --title "[Epic] Structured LLM Communication" --body "包含 EA-001 ~ EA-003" --label "Epic: Structured-LLM" || true
+          gh issue create --repo ${{ github.repository }} --title "[Epic] Multi-round Analysis Loop" --body "包含 EA-004 ~ EA-005" --label "Epic: Multi-round-Loop" || true
+          gh issue create --repo ${{ github.repository }} --title "[Epic] Playbook Strategy" --body "包含 EA-006 ~ EA-007" --label "Epic: Playbook-Strategy" || true
+          gh issue create --repo ${{ github.repository }} --title "[Epic] Observability" --body "包含 EA-008 ~ EA-009" --label "Epic: Observability" || true
+          gh issue create --repo ${{ github.repository }} --title "[Epic] Engineering" --body "包含 EA-010" --label "Epic: Engineering" || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create High Priority Stories
         run: |
-          gh issue create --repo ${{ github.repository }} --title "EA-001: 结构化市场观察输出" --body "As a 交易者, I want 结构化市场观察输出. See docs/user-journey-and-stories.md" --label "Epic: Structured-LLM,Priority: P0,Type: Story"
-          gh issue create --repo ${{ github.repository }} --title "EA-002: 结构化交易信号输出" --body "As a 系统, I want 结构化交易信号输出. See docs/user-journey-and-stories.md" --label "Epic: Structured-LLM,Priority: P0,Type: Story"
-          gh issue create --repo ${{ github.repository }} --title "EA-004: 智能多轮分析控制" --body "As a 交易者, I want 智能多轮分析控制. See docs/user-journey-and-stories.md" --label "Epic: Multi-round-Loop,Priority: P0,Type: Story"
+          gh issue create --repo ${{ github.repository }} --title "EA-001: 结构化市场观察输出" --body "As a 交易者, I want 结构化市场观察输出. See docs/user-journey-and-stories.md" --label "Epic: Structured-LLM,Priority: P0,Type: Story" || true
+          gh issue create --repo ${{ github.repository }} --title "EA-002: 结构化交易信号输出" --body "As a 系统, I want 结构化交易信号输出. See docs/user-journey-and-stories.md" --label "Epic: Structured-LLM,Priority: P0,Type: Story" || true
+          gh issue create --repo ${{ github.repository }} --title "EA-004: 智能多轮分析控制" --body "As a 交易者, I want 智能多轮分析控制. See docs/user-journey-and-stories.md" --label "Epic: Multi-round-Loop,Priority: P0,Type: Story" || true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
