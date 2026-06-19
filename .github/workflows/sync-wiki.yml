@@ -11,10 +11,8 @@ jobs:
     steps:
       - name: Checkout main repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
 
-      - name: Sync docs/wiki to GitHub Wiki
+      - name: Sync Wiki
         run: |
           chmod +x scripts/sync-wiki.sh
           ./scripts/sync-wiki.sh
