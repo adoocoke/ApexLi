@@ -44,7 +44,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create High Priority Stories (with duplicate check)
+      - name: Create All Stories (with duplicate check)
         run: |
           create_story() {
             local title="$1"
@@ -57,8 +57,24 @@ jobs:
             fi
           }
 
-          create_story "EA-001: 结构化市场观察输出" "As a 交易者, I want 结构化市场观察输出. See docs/user-journey-and-stories.md" "Epic: Structured-LLM,Priority: P0,Type: Story"
-          create_story "EA-002: 结构化交易信号输出" "As a 系统, I want 结构化交易信号输出. See docs/user-journey-and-stories.md" "Epic: Structured-LLM,Priority: P0,Type: Story"
-          create_story "EA-004: 智能多轮分析控制" "As a 交易者, I want 智能多轮分析控制. See docs/user-journey-and-stories.md" "Epic: Multi-round-Loop,Priority: P0,Type: Story"
+          # Epic 1: Structured LLM Communication
+          create_story "EA-001: 结构化市场观察输出" "As a 交易者, I want 结构化市场观察输出. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Structured-LLM,Priority: P0,Type: Story"
+          create_story "EA-002: 结构化交易信号输出" "As a 系统, I want 结构化交易信号输出. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Structured-LLM,Priority: P0,Type: Story"
+          create_story "EA-003: 结构化 Critique 判断" "As a 系统, I want llm_critique 能引用结构化 Observation 进行判断. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Structured-LLM,Priority: P1,Type: Story"
+
+          # Epic 2: Multi-round Analysis Loop
+          create_story "EA-004: 智能多轮分析控制" "As a 交易者, I want 系统能在质量不足时自动多轮分析. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Multi-round-Loop,Priority: P0,Type: Story"
+          create_story "EA-005: 最终报告展示多轮分析路径" "As a 交易者, I want 在最终报告中看到完整的多轮分析过程. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Multi-round-Loop,Priority: P1,Type: Story"
+
+          # Epic 3: Playbook Strategy
+          create_story "EA-006: 支持 Core Rules 策略" "As a 交易者, I want 能通过配置使用精简核心规则. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Playbook-Strategy,Priority: P1,Type: Story"
+          create_story "EA-007: 多轮中展示当前 Playbook 策略" "As a 交易者, I want 在分析过程中看到当前使用的 Playbook 策略. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Playbook-Strategy,Priority: P2,Type: Story"
+
+          # Epic 4: Observability
+          create_story "EA-008: Console 输出颜色区分" "As a 交易者, I want 控制台输出使用颜色区分不同轮次和组件. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Observability,Priority: P1,Type: Story"
+          create_story "EA-009: Sensors 检查结果突出显示" "As a 交易者, I want Sensors 检查结果在有问题时用醒目颜色显示. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Observability,Priority: P1,Type: Story"
+
+          # Epic 5: Engineering
+          create_story "EA-010: 节点模块化拆分" "As a 开发者, I want 分析节点被拆分成独立模块. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Engineering,Priority: P2,Type: Story"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
