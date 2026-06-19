@@ -1,6 +1,6 @@
 """
 eaagent/a_plus_plus/graph.py
-完整可运行版本（测试模式下 call_llm 直接返回固定字符串）
+完整可运行版本（测试模式下 call_llm 直接返回固定字符串 + Strategy Pattern）
 """
 
 from __future__ import annotations
@@ -13,13 +13,18 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
 from .data_provider import get_market_data, get_historical_data
-from .playbook_loader import load_playbook, build_playbook_prompt, get_relevant_playbook_rules
+from .playbook_loader import (
+    load_playbook, 
+    build_playbook_prompt, 
+    get_relevant_playbook_rules, 
+    get_playbook_id,
+    PLAYBOOK_CONTENT
+)
 from .config import MAX_ROUNDS
 
 
 def call_llm(prompt: str, system_prompt: str = "") -> str:
     """调用 Grok（测试模式下直接返回固定字符串，无额外开销）"""
-    # 测试模式：直接返回固定字符串
     if os.getenv("USE_MOCK_LLM") == "true":
         return "根据历史数据分析，当前处于反弹阶段，建议在支撑位附近做多，止损设在 2915。"
 
@@ -84,6 +89,8 @@ class TAState(TypedDict):
     max_rounds: int
     critique_result: Optional[dict]
     reason_count: int
+    playbook_id: str
+    playbook_content_sent: bool
 
 
 def create_initial_state(symbol: str = "RB2605.SHF") -> TAState:
@@ -114,6 +121,8 @@ def create_initial_state(symbol: str = "RB2605.SHF") -> TAState:
         max_rounds=MAX_ROUNDS,
         critique_result=None,
         reason_count=0,
+        playbook_id="",
+        playbook_content_sent=False,
     )
 
 
@@ -124,7 +133,24 @@ def initialize_state(state: TAState) -> TAState:
 
     if load_playbook():
         state["playbook_used"] = True
-        state["messages"].append({"role": "system", "content": build_playbook_prompt()})
+        from eaagent.a_plus_plus.strategies.playbook_strategies import (
+            FullPlaybookStrategy,
+            IdOnlyStrategy
+        )
+
+        playbook_id = get_playbook_id(PLAYBOOK_CONTENT)
+        state["playbook_id"] = playbook_id
+
+        if not state.get("playbook_content_sent", False):
+            strategy = FullPlaybookStrategy()
+            state["playbook_content_sent"] = True
+            print(f"[Playbook] 使用完整策略，ID: {playbook_id}")
+        else:
+            strategy = IdOnlyStrategy()
+            print(f"[Playbook] 使用 ID 策略，ID: {playbook_id}")
+
+        system_prompt = strategy.get_system_prompt(PLAYBOOK_CONTENT, playbook_id)
+        state["messages"].append({"role": "system", "content": system_prompt})
     else:
         state["playbook_used"] = False
 

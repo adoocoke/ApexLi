@@ -1,15 +1,18 @@
-"""Playbook 加载与规则提取模块"""
-
 import os
 import re
+import hashlib
 
 PLAYBOOK_CONTENT = ""
 PLAYBOOK_LOADED = False
 PLAYBOOK_RULES = []
 
 
+def get_playbook_id(content: str) -> str:
+    """根据 Playbook 内容生成稳定 ID"""
+    return hashlib.md5(content.encode('utf-8')).hexdigest()[:12]
+
+
 def load_playbook() -> bool:
-    """加载 Playbook 文件"""
     global PLAYBOOK_CONTENT, PLAYBOOK_LOADED, PLAYBOOK_RULES
 
     possible_paths = [
@@ -24,7 +27,6 @@ def load_playbook() -> bool:
                 with open(path, "r", encoding="utf-8") as f:
                     PLAYBOOK_CONTENT = f.read()
 
-                # 提取关键规则标题
                 PLAYBOOK_RULES = re.findall(r'###\s*(.+?)(?=\n|$)', PLAYBOOK_CONTENT)
                 if not PLAYBOOK_RULES:
                     PLAYBOOK_RULES = ["量仓变化优先", "多时间框架一致性", "严格止损纪律"]
@@ -41,11 +43,9 @@ def load_playbook() -> bool:
 
 
 def build_playbook_prompt() -> str:
-    """构建注入 LLM 的 Playbook Prompt"""
     if not PLAYBOOK_LOADED or not PLAYBOOK_CONTENT:
         return "你是一个专业的期货技术分析师，请严格遵守交易纪律进行分析。"
 
-    # 截取前 3500 字符，避免 token 过长
     core_content = PLAYBOOK_CONTENT[:3500]
     return f"""你是一个专业的期货技术分析师，请严格遵守以下 Playbook 规则进行分析：
 
@@ -60,7 +60,6 @@ def build_playbook_prompt() -> str:
 
 
 def get_relevant_playbook_rules(context: str = "") -> list:
-    """根据上下文匹配相关规则"""
     if not PLAYBOOK_LOADED:
         return []
 
