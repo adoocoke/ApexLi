@@ -1,28 +1,27 @@
 # EA Agent
 
-**EA Agent** 是一个基于 **LangGraph** 构建的**期货技术分析智能体**，专注于为期货交易者提供结构化、多轮自动优化的技术分析能力。
+**EA Agent** 是一个基于 **LangGraph** 构建的**期货技术分析智能体**，核心目标是实现**透明、可观测、可迭代**的多轮技术分析流程，而不是黑盒输出。
 
-项目核心目标是：**让分析过程透明、可观测、可迭代**，而不是黑盒输出结果。
+项目采用 **Martin Fowler Agent Harness** 思想，结合 **Strategy Pattern** 和结构化 LLM 输出，打造可控的分析闭环。
 
 ---
 
 ## 核心特性
 
-| 特性                  | 说明                                                                 |
-|-----------------------|----------------------------------------------------------------------|
-| **多轮自动分析**      | 默认最多进行 3 轮分析，遇到问题时自动继续优化                        |
-| **透明日志**          | 每轮都会清晰打印数据来源、参考的 Playbook 规则、质量检查结果         |
-| **Playbook 驱动**     | 自动加载 `trading_playbook_v3.md`，并在分析时展示匹配的规则          |
-| **Mock / 真实数据切换** | 通过环境变量 `USE_MOCK_OBSERVATION` 控制是否使用真实 Tushare 数据   |
-| **质量检查 (Sensors)** | 自动检测数据不足、置信度低等问题，并触发下一轮分析                   |
-| **持久化支持**        | 支持通过 `thread_id` 继续追问同一个品种                              |
-| **完整测试覆盖**      | 使用 pytest + Makefile 管理测试                                      |
+| 特性                    | 说明 |
+|-------------------------|------|
+| **多轮自动分析**        | 支持最多 5 轮自动迭代分析，遇到问题时自动触发下一轮 |
+| **Playbook Strategy**   | 支持 `Full` / `Core` / `IdOnly` 三种 Playbook 注入策略，可通过环境变量切换 |
+| **结构化 LLM 输出**     | `structured_observation` 和 `signal_generation` 均输出结构化 JSON，便于后续节点消费 |
+| **智能 Sensors**        | `quality_sensor` + `llm_critique` 共同判断是否继续分析，减少无效轮次 |
+| **透明可观测**          | 每轮清晰打印策略使用情况、质量检查结果、LLM 返回内容 |
+| **Mock / 真实数据**     | 通过 `USE_MOCK_OBSERVATION` 快速切换 Mock 与真实 Tushare 数据 |
+| **节点化架构**          | 将分析流程拆分为 `nodes/` 模块，便于维护和扩展 |
+| **完整测试覆盖**      | pytest + Makefile 管理测试                                      |
 
 ---
 
 ## 快速开始
-
-### 安装
 
 ```bash
 git clone https://github.com/adoocoke/eaagent.git
@@ -30,10 +29,16 @@ cd eaagent
 pip install -e ".[dev,langgraph,tushare]"
 ```
 
-### 基础运行（Mock 模式，默认推荐）
+### 运行（推荐 Mock 模式）
 
 ```bash
 python -m eaagent.a_plus_plus.graph
+```
+
+### 使用 Core Rules 策略（推荐节省 Token）
+
+```bash
+PLAYBOOK_STRATEGY=core python -m eaagent.a_plus_plus.graph
 ```
 
 ### 使用真实 Tushare 数据
@@ -42,7 +47,7 @@ python -m eaagent.a_plus_plus.graph
 USE_MOCK_OBSERVATION=false python -m eaagent.a_plus_plus.graph
 ```
 
-> 需要提前配置环境变量 `TUSHARE_TOKEN`
+> 需要配置环境变量 `TUSHARE_TOKEN`
 
 ---
 
@@ -51,109 +56,74 @@ USE_MOCK_OBSERVATION=false python -m eaagent.a_plus_plus.graph
 ```
 eaagent/
 ├── eaagent/
-│   ├── a_plus_plus/              # 核心增强模块（当前主力）
-│   │   ├── graph.py              # 多轮分析 + 透明日志 + Harness 核心
-│   │   ├── prompt_builder.py     # Playbook 加载
-│   │   └── tools.py
-│   ├── tools/                    # Tushare 等工具
-│   └── agent.py
-├── tests/                        # 完整测试
-├── Makefile                      # 便捷测试命令
+│   ├── a_plus_plus/
+│   │   ├── graph.py                 # Harness 核心（Graph 组装 + 节点调用）
+│   │   ├── types.py                 # TAState 定义
+│   │   ├── utils/
+│   │   │   ├── llm.py               # call_llm（支持 Mock）
+│   │   │   └── console.py           # 颜色输出工具
+│   │   ├── nodes/                   # 各分析节点（已拆分）
+│   │   │   ├── observation.py       # 结构化市场观察（JSON 输出）
+│   │   │   ├── signal.py
+│   │   │   ├── quality_sensor.py
+│   │   │   └── ...
+│   │   ├── strategies/              # Playbook 注入策略
+│   │   │   └── playbook_strategies.py
+│   │   ├── data_provider.py
+│   │   └── playbook_loader.py
+│   └── ...
+├── tests/
+├── todo/
+│   └── graph_refactor_plan.md       # 重构进度追踪
 └── README.md
 ```
 
 ---
 
-## 运行效果示例
+## 主要设计亮点
 
-```text
-======================================================================
-[初始化] 开始分析 RB2605
-  - 数据来源: MOCK
-  - Playbook: ✅ 成功加载（共 12 条关键规则）
-  - 最大分析轮次: 3
-======================================================================
+### 1. Playbook Strategy Pattern
+支持三种注入方式：
+- `full`：发送完整 Playbook（默认）
+- `core`：仅发送精简核心规则（节省 Token）
+- `id_only`：后续轮次仅发送 Playbook ID
 
-[第 1 轮] 数据获取阶段
-  → 使用 Mock 数据
+通过环境变量 `PLAYBOOK_STRATEGY` 控制。
 
-[第 1 轮] 结构化市场观察
-  → 参考 Playbook 规则: ['量仓变化优先', '多时间框架一致性']
+### 2. 结构化 LLM 沟通
+- `structured_observation` 输出包含趋势、关键位、量价、形态、结论等结构化信息
+- `signal_generation` 输出包含方向、入场、止损、理由的 JSON
+- 便于后续 Sensors 和多轮分析复用
 
-[第 1 轮] 生成交易信号
-  → 参考 Playbook 规则: ['严格止损纪律']
-
-[第 1 轮] 质量检查 (Sensors)
-  → 发现问题，进入第 2 轮...
-
-[第 2 轮] 数据获取阶段
-...
-
-======================================================================
-【RB2605 技术分析报告】（共 2 轮）
-======================================================================
-数据来源: MOCK
-Playbook 使用: 是
-实际分析轮次: 2
-最终综合置信度: 81%
-最终交易信号:
-  • 多头 | 入场 4125 | 止损 4080
-✅ 分析完成，未发现明显问题
-======================================================================
-```
+### 3. 智能多轮控制
+通过 `quality_sensor` + `llm_critique` 共同判断是否继续下一轮，避免无效分析。
 
 ---
 
-## 主要模块说明
+## 环境变量
 
-### `eaagent/a_plus_plus/graph.py`（核心）
-
-当前项目的**核心引擎**，实现了以下能力：
-
-- 多轮自动分析循环（问题驱动）
-- 清晰的每轮日志输出
-- Playbook 规则匹配展示
-- Tushare / Mock 数据源切换
-- Sensors 质量检查机制
-
-### Playbook 集成
-
-项目会自动尝试加载 `trading_playbook_v3.md`，并在分析过程中展示**参考了哪些规则**。
-
-支持的加载路径（按优先级）：
-- `artifacts/trading_playbook_v3.md`
-- `artifacts/playbooks/trading_playbook_v3.md`
-- 项目根目录 `trading_playbook_v3.md`
+| 变量                        | 默认值   | 说明 |
+|-----------------------------|----------|------|
+| `USE_MOCK_OBSERVATION`      | `true`   | 是否使用 Mock 数据 |
+| `PLAYBOOK_STRATEGY`         | `full`   | Playbook 注入策略（`full` / `core`） |
+| `TUSHARE_TOKEN`             | -        | Tushare 接口 Token |
 
 ---
 
 ## 测试
 
 ```bash
-# 运行全量测试
-make test
-
-# 运行带覆盖率的测试
-make test-cov
+make test              # 运行所有测试
+make test-cov          # 带覆盖率报告
 ```
-
----
-
-## 环境变量
-
-| 变量                        | 默认值   | 说明                                      |
-|-----------------------------|----------|-------------------------------------------|
-| `USE_MOCK_OBSERVATION`      | `true`   | 是否使用 Mock 数据，设为 `false` 时尝试调用真实 Tushare |
-| `TUSHARE_TOKEN`             | -        | Tushare 接口 Token                        |
 
 ---
 
 ## 开发建议
 
-- 日常开发推荐开启 Mock 模式（`USE_MOCK_OBSERVATION=true`）
-- 修改 `graph.py` 后请运行 `make test`
-- 新增功能建议同步更新测试和日志输出
-- 提交前建议执行 `make test`
+- 日常开发推荐使用 `USE_MOCK_OBSERVATION=true`
+- 修改节点逻辑后请运行测试
+- 重构或新增节点请同步更新 `todo/graph_refactor_plan.md`
 
 ---
 
