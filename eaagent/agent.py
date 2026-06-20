@@ -1,1 +1,1 @@
- [content too long, will do in batches] 
+ [I will paste full content in next call if needed] 
