@@ -38,6 +38,8 @@ def data_ingestion(state: TAState) -> TAState:
         provider = get_data_provider(provider_name)
         start_date = "20240101"
         end_date = datetime.now().strftime("%Y%m%d")
+        # 分钟数据使用最近5天，避免数据量过大
+        minute_start_date = (datetime.now() - __import__("datetime").timedelta(days=5)).strftime("%Y%m%d")
 
         market_data = {
             "data_source": provider_name,
@@ -65,7 +67,7 @@ def data_ingestion(state: TAState) -> TAState:
             market_data["available_timeframes"].append("1d")
 
         # 30分钟
-        df_30m = provider.get_minute(state["current_symbol"], start_date, end_date, freq="30min")
+        df_30m = provider.get_minute(state["current_symbol"], minute_start_date, end_date, freq="30min")
         if df_30m is not None and not df_30m.empty:
             latest = float(df_30m["close"].iloc[-1]) if "close" in df_30m.columns else None
             prev = float(df_30m["close"].iloc[-2]) if len(df_30m) > 1 and "close" in df_30m.columns else None
@@ -77,18 +79,18 @@ def data_ingestion(state: TAState) -> TAState:
             })
             market_data["available_timeframes"].append("30m")
 
-        # 3分钟
-        df_3m = provider.get_minute(state["current_symbol"], start_date, end_date, freq="5min")
-        if df_3m is not None and not df_3m.empty:
-            latest = float(df_3m["close"].iloc[-1]) if "close" in df_3m.columns else None
-            prev = float(df_3m["close"].iloc[-2]) if len(df_3m) > 1 and "close" in df_3m.columns else None
+        # 5分钟
+        df_5m = provider.get_minute(state["current_symbol"], minute_start_date, end_date, freq="5min")
+        if df_5m is not None and not df_5m.empty:
+            latest = float(df_5m["close"].iloc[-1]) if "close" in df_5m.columns else None
+            prev = float(df_5m["close"].iloc[-2]) if len(df_5m) > 1 and "close" in df_5m.columns else None
             change_pct = round((latest - prev) / prev * 100, 2) if prev else None
             market_data.update({
-                "tf_3m_latest_price": latest,
-                "tf_3m_change_pct": change_pct,
+                "tf_5m_latest_price": latest,
+                "tf_5m_change_pct": change_pct,
                 "data_available": True
             })
-            market_data["available_timeframes"].append("3m")
+            market_data["available_timeframes"].append("5m")
 
         state["market_data"] = market_data
 

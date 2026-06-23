@@ -67,11 +67,13 @@ class TushareStockProvider(DataProvider):
             start_time = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]} 09:00:00"
             end_time = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]} 15:00:00"
 
+            print(f"[TushareStockProvider] 请求分钟数据: ts_code={ts_code}, freq={freq}, start_date={start_time}, end_date={end_time}")
+
             df = self.pro.stk_mins(
                 ts_code=ts_code,
                 freq=freq,
-                start_time=start_time,
-                end_time=end_time
+                start_date=start_time,
+                end_date=end_time
             )
             if df is None or df.empty:
                 return pd.DataFrame()
