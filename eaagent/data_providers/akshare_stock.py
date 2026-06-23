@@ -40,11 +40,6 @@ class AkshareStockProvider(DataProvider):
             return pd.DataFrame()
         try:
             code = self._normalize_symbol(symbol)
-            if "." not in code:
-                if code.startswith("6"):
-                    code = code + ".SH"
-                else:
-                    code = code + ".SZ"
             # 强制把 YYYYMMDD 转为 YYYY-MM-DD
             start_date = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]}"
             end_date   = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}"
@@ -87,11 +82,6 @@ class AkshareStockProvider(DataProvider):
             return pd.DataFrame()
         try:
             code = self._normalize_symbol(symbol)
-            if "." not in code:
-                if code.startswith("6"):
-                    code = code + ".SH"
-                else:
-                    code = code + ".SZ"
             start = self._format_date(start_date)
             end = self._format_date(end_date)
             print(f"[Akshare] 请求分钟: symbol={code}, start={start}, end={end}, freq={freq}")
