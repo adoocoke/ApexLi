@@ -48,11 +48,6 @@ class AkshareStockProvider(DataProvider):
             start = self._format_date(start_date)
             end = self._format_date(end_date)
             print(f"[Akshare] 请求日线: symbol={code}, start={start}, end={end}")
-
-            # 强制禁用代理（兼容各种代理环境变量）
-            import os
-            for var in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
-                os.environ[var] = ""
             df = ak.stock_zh_a_hist(
                 symbol=code,
                 period="daily",
@@ -61,7 +56,6 @@ class AkshareStockProvider(DataProvider):
                 adjust="",
                 proxies={"http": None, "https": None},
             )
-
             row_count = len(df) if df is not None else 0
             print(f"[Akshare] 返回行数: {row_count}")
             if df is None or df.empty:
@@ -100,11 +94,6 @@ class AkshareStockProvider(DataProvider):
             start = self._format_date(start_date)
             end = self._format_date(end_date)
             print(f"[Akshare] 请求分钟: symbol={code}, start={start}, end={end}, freq={freq}")
-
-            # 强制禁用代理（兼容各种代理环境变量）
-            import os
-            for var in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
-                os.environ[var] = ""
             df = ak.stock_zh_a_hist_min(
                 symbol=code,
                 period=freq,
@@ -113,7 +102,6 @@ class AkshareStockProvider(DataProvider):
                 adjust="qfq",
                 proxies={"http": None, "https": None},
             )
-
             row_count = len(df) if df is not None else 0
             print(f"[Akshare] 返回行数: {row_count}")
             if df is None or df.empty:
