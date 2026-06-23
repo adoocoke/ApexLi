@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from eaagent.data_providers.base import DataProvider
 from eaagent.data_providers.tushare_futures import TushareFuturesProvider
+from eaagent.data_providers.tushare_stock import TushareStockProvider
 
 
 def get_data_provider(
@@ -14,7 +15,7 @@ def get_data_provider(
     Args:
         name: 数据提供者名称，目前支持：
               - "tushare_futures" (默认)
-              - 未来可扩展: "tushare_stock", "akshare" 等
+              - "tushare_stock"
         **kwargs: 传递给具体 Provider 的参数（如 token）
 
     Returns:
@@ -22,14 +23,10 @@ def get_data_provider(
     """
     if name == "tushare_futures":
         return TushareFuturesProvider(**kwargs)
-    
-    # 未来在这里扩展其他 Provider
-    # elif name == "tushare_stock":
-    #     from .tushare_stock import TushareStockProvider
-    #     return TushareStockProvider(**kwargs)
-    
+    elif name == "tushare_stock":
+        return TushareStockProvider(**kwargs)
     else:
         raise ValueError(
             f"Unknown data provider: '{name}'. "
-            f"Currently supported: 'tushare_futures'"
+            f"Currently supported: 'tushare_futures', 'tushare_stock'"
         )
