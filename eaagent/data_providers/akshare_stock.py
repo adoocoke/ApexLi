@@ -40,7 +40,6 @@ class AkshareStockProvider(DataProvider):
             return pd.DataFrame()
         try:
             code = self._normalize_symbol(symbol)
-            # 自动补全后缀
             if "." not in code:
                 if code.startswith("6"):
                     code = code + ".SH"
@@ -52,8 +51,8 @@ class AkshareStockProvider(DataProvider):
             df = ak.stock_zh_a_hist(
                 symbol=code,
                 period="daily",
-                start_date=start.replace("-", ""),
-                end_date=end.replace("-", ""),
+                start_date=start,
+                end_date=end,
                 adjust="",
                 proxies={"http": None, "https": None},
             )
@@ -87,16 +86,24 @@ class AkshareStockProvider(DataProvider):
             return pd.DataFrame()
         try:
             code = self._normalize_symbol(symbol)
+            if "." not in code:
+                if code.startswith("6"):
+                    code = code + ".SH"
+                else:
+                    code = code + ".SZ"
             start = self._format_date(start_date)
             end = self._format_date(end_date)
+            print(f"[Akshare] 请求分钟: symbol={code}, start={start}, end={end}, freq={freq}")
             df = ak.stock_zh_a_hist_min(
                 symbol=code,
                 period=freq,
-                start_date=start.replace("-", ""),
-                end_date=end.replace("-", ""),
+                start_date=start,
+                end_date=end,
                 adjust="qfq",
                 proxies={"http": None, "https": None},
             )
+            row_count = len(df) if df is not None else 0
+            print(f"[Akshare] 返回行数: {row_count}")
             if df is None or df.empty:
                 return pd.DataFrame()
             df = df.rename(
