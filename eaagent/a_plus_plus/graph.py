@@ -99,14 +99,16 @@ def initialize_state(state: TAState) -> TAState:
     color_print(f"  - 最大分析轮次: {state['max_rounds']}", Colors.OKCYAN)
     color_print("="*70, Colors.BOLD)
     # Pilot: new DataProvider (minimal change, old code in nodes kept)
-    provider = get_data_provider("tushare_futures")
-    start_date = "20240101"
-    end_date = datetime.now().strftime("%Y%m%d")
-    try:
-        df = provider.get_daily(state["current_symbol"], start_date, end_date)
-        state.setdefault("market_data", {})["daily_df"] = df  # 新 Provider 获取的数据
-    except Exception:
-        pass  # fallback 保留原有 nodes 逻辑
+    use_mock = os.getenv("USE_MOCK_OBSERVATION", "true").lower() == "true"
+    if not use_mock:
+        provider = get_data_provider("tushare_futures")
+        start_date = "20240101"
+        end_date = datetime.now().strftime("%Y%m%d")
+        try:
+            df = provider.get_daily(state["current_symbol"], start_date, end_date)
+            state.setdefault("market_data", {})["daily_df"] = df  # 新 Provider 获取的数据
+        except Exception:
+            pass  # fallback 保留原有 nodes 逻辑
     return state
 
 
