@@ -32,7 +32,9 @@ def data_ingestion(state: TAState) -> TAState:
         return state
 
     # 真实模式：根据品种自动选择 Provider
-    provider_name = "tushare_futures" if _is_futures_symbol(state["current_symbol"]) else "tushare_stock"
+    provider_name = os.getenv("DATA_PROVIDER")
+    if not provider_name:
+        provider_name = "tushare_futures" if _is_futures_symbol(state["current_symbol"]) else "tushare_stock"
 
     try:
         provider = get_data_provider(provider_name)
