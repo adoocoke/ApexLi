@@ -18,14 +18,18 @@ class TestAkshareStockProvider:
             "成交量": [100000],
             "成交额": [1050000],
         })
-        with patch("eaagent.data_providers.akshare_stock.ak.stock_zh_a_hist", return_value=mock_df):
+        mock_ak = MagicMock()
+        mock_ak.stock_zh_a_hist.return_value = mock_df
+        with patch("eaagent.data_providers.akshare_stock.ak", mock_ak):
             result = provider.get_daily("000001.SZ", "20240101", "20240102")
             assert not result.empty
             assert "trade_date" in result.columns
 
     def test_get_daily_empty(self):
         provider = AkshareStockProvider()
-        with patch("eaagent.data_providers.akshare_stock.ak.stock_zh_a_hist", return_value=pd.DataFrame()):
+        mock_ak = MagicMock()
+        mock_ak.stock_zh_a_hist.return_value = pd.DataFrame()
+        with patch("eaagent.data_providers.akshare_stock.ak", mock_ak):
             result = provider.get_daily("000001.SZ", "20240101", "20240102")
             assert result.empty
 
@@ -40,14 +44,18 @@ class TestAkshareStockProvider:
             "成交量": [5000],
             "成交额": [50250],
         })
-        with patch("eaagent.data_providers.akshare_stock.ak.stock_zh_a_hist_min", return_value=mock_df):
+        mock_ak = MagicMock()
+        mock_ak.stock_zh_a_hist_min.return_value = mock_df
+        with patch("eaagent.data_providers.akshare_stock.ak", mock_ak):
             result = provider.get_minute("000001.SZ", "20240101", "20240102", freq="5min")
             assert not result.empty
             assert "trade_date" in result.columns
 
     def test_get_daily_exception_returns_empty(self):
         provider = AkshareStockProvider()
-        with patch("eaagent.data_providers.akshare_stock.ak.stock_zh_a_hist", side_effect=Exception("boom")):
+        mock_ak = MagicMock()
+        mock_ak.stock_zh_a_hist.side_effect = Exception("boom")
+        with patch("eaagent.data_providers.akshare_stock.ak", mock_ak):
             result = provider.get_daily("000001.SZ", "20240101", "20240102")
             assert result.empty
 
