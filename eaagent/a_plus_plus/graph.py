@@ -100,7 +100,13 @@ def initialize_state(state: TAState) -> TAState:
     color_print("="*70, Colors.BOLD)
     # Pilot: new DataProvider (minimal change, old code in nodes kept)
     provider = get_data_provider("tushare_futures")
-    # df = provider.get_daily(symbol, start_date, end_date)  # 实际调用留给 data_ingestion 节点
+    start_date = "20240101"
+    end_date = datetime.now().strftime("%Y%m%d")
+    try:
+        df = provider.get_daily(state["current_symbol"], start_date, end_date)
+        state.setdefault("market_data", {})["daily_df"] = df  # 新 Provider 获取的数据
+    except Exception:
+        pass  # fallback 保留原有 nodes 逻辑
     return state
 
 
