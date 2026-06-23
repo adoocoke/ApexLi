@@ -7,15 +7,21 @@ from eaagent.data_providers.tushare_futures import TushareFuturesProvider
 
 class TestDataProviderFactory:
 
-    def test_get_data_provider_default(self):
+    @patch("eaagent.data_providers.factory.TushareFuturesProvider")
+    def test_get_data_provider_default(self, mock_provider_class):
         """测试默认返回 TushareFuturesProvider"""
+        mock_instance = MagicMock()
+        mock_provider_class.return_value = mock_instance
         provider = get_data_provider()
-        assert isinstance(provider, TushareFuturesProvider)
+        assert provider == mock_instance
 
-    def test_get_data_provider_explicit_futures(self):
+    @patch("eaagent.data_providers.factory.TushareFuturesProvider")
+    def test_get_data_provider_explicit_futures(self, mock_provider_class):
         """测试显式指定 tushare_futures"""
+        mock_instance = MagicMock()
+        mock_provider_class.return_value = mock_instance
         provider = get_data_provider("tushare_futures")
-        assert isinstance(provider, TushareFuturesProvider)
+        assert provider == mock_instance
 
     def test_get_data_provider_unknown_raises_error(self):
         """测试传入不支持的 provider 时抛出 ValueError"""

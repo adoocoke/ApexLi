@@ -10,10 +10,13 @@ from eaagent.data_providers.base import DataProvider
 class TushareFuturesProvider(DataProvider):
     """Tushare 期货数据提供者实现"""
 
-    def __init__(self, token: str | None = None):
-        if token:
-            ts.set_token(token)
-        self.pro = ts.pro_api()
+    def __init__(self, token: str | None = None, pro: Any = None):
+        if pro is not None:
+            self.pro = pro
+        else:
+            if token:
+                ts.set_token(token)
+            self.pro = ts.pro_api()
 
     def _normalize_symbol(self, symbol: str) -> str:
         """将 RB2605 转换为 RB2605.SHF"""
