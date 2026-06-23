@@ -48,14 +48,37 @@ class AkshareStockProvider(DataProvider):
             start = self._format_date(start_date)
             end = self._format_date(end_date)
             print(f"[Akshare] 请求日线: symbol={code}, start={start}, end={end}")
-            df = ak.stock_zh_a_hist(
-                symbol=code,
-                period="daily",
-                start_date=start,
-                end_date=end,
-                adjust="",
-                proxies={"http": None, "https": None},
-            )
+
+            # 临时清除代理环境变量，避免 ALL_PROXY 等干扰
+            import os
+            old_http = os.environ.pop("http_proxy", None)
+            old_https = os.environ.pop("https_proxy", None)
+            old_all = os.environ.pop("ALL_PROXY", None)
+            old_http_upper = os.environ.pop("HTTP_PROXY", None)
+            old_https_upper = os.environ.pop("HTTPS_PROXY", None)
+
+            try:
+                df = ak.stock_zh_a_hist(
+                    symbol=code,
+                    period="daily",
+                    start_date=start,
+                    end_date=end,
+                    adjust="",
+                    proxies={"http": None, "https": None},
+                )
+            finally:
+                # 恢复环境变量
+                if old_http is not None:
+                    os.environ["http_proxy"] = old_http
+                if old_https is not None:
+                    os.environ["https_proxy"] = old_https
+                if old_all is not None:
+                    os.environ["ALL_PROXY"] = old_all
+                if old_http_upper is not None:
+                    os.environ["HTTP_PROXY"] = old_http_upper
+                if old_https_upper is not None:
+                    os.environ["HTTPS_PROXY"] = old_https_upper
+
             row_count = len(df) if df is not None else 0
             print(f"[Akshare] 返回行数: {row_count}")
             if df is None or df.empty:
@@ -94,14 +117,36 @@ class AkshareStockProvider(DataProvider):
             start = self._format_date(start_date)
             end = self._format_date(end_date)
             print(f"[Akshare] 请求分钟: symbol={code}, start={start}, end={end}, freq={freq}")
-            df = ak.stock_zh_a_hist_min(
-                symbol=code,
-                period=freq,
-                start_date=start,
-                end_date=end,
-                adjust="qfq",
-                proxies={"http": None, "https": None},
-            )
+
+            # 临时清除代理环境变量
+            import os
+            old_http = os.environ.pop("http_proxy", None)
+            old_https = os.environ.pop("https_proxy", None)
+            old_all = os.environ.pop("ALL_PROXY", None)
+            old_http_upper = os.environ.pop("HTTP_PROXY", None)
+            old_https_upper = os.environ.pop("HTTPS_PROXY", None)
+
+            try:
+                df = ak.stock_zh_a_hist_min(
+                    symbol=code,
+                    period=freq,
+                    start_date=start,
+                    end_date=end,
+                    adjust="qfq",
+                    proxies={"http": None, "https": None},
+                )
+            finally:
+                if old_http is not None:
+                    os.environ["http_proxy"] = old_http
+                if old_https is not None:
+                    os.environ["https_proxy"] = old_https
+                if old_all is not None:
+                    os.environ["ALL_PROXY"] = old_all
+                if old_http_upper is not None:
+                    os.environ["HTTP_PROXY"] = old_http_upper
+                if old_https_upper is not None:
+                    os.environ["HTTPS_PROXY"] = old_https_upper
+
             row_count = len(df) if df is not None else 0
             print(f"[Akshare] 返回行数: {row_count}")
             if df is None or df.empty:
