@@ -45,14 +45,15 @@ class AkshareStockProvider(DataProvider):
                     code = code + ".SH"
                 else:
                     code = code + ".SZ"
-            start = self._format_date(start_date)
-            end = self._format_date(end_date)
-            print(f"[Akshare] 请求日线: symbol={code}, start={start}, end={end}")
+            # 强制把 YYYYMMDD 转为 YYYY-MM-DD
+            start_date = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]}"
+            end_date   = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}"
+            print(f"[Akshare] 请求日线: symbol={code}, start={start_date}, end={end_date}")
             df = ak.stock_zh_a_hist(
                 symbol=code,
                 period="daily",
-                start_date=start,
-                end_date=end,
+                start_date=start_date,
+                end_date=end_date,
                 adjust="",
                 proxies={"http": None, "https": None},
             )
