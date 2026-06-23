@@ -43,15 +43,25 @@ class AkshareStockProvider(DataProvider):
             # 强制把 YYYYMMDD 转为 YYYY-MM-DD
             start_date = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]}"
             end_date   = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]}"
-            print(f"[Akshare] 请求日线: symbol={code}, start={start_date}, end={end_date}")
+            print(f"[Akshare] 请求日线: symbol={code}, start={start_date}, end={end_date}, adjust=qfq")
             df = ak.stock_zh_a_hist(
                 symbol=code,
                 period="daily",
                 start_date=start_date,
                 end_date=end_date,
-                adjust="",
+                adjust="qfq",
                 proxies={"http": None, "https": None},
             )
+            if df is None or df.empty:
+                print("[Akshare] qfq 返回空，尝试 adjust=''")
+                df = ak.stock_zh_a_hist(
+                    symbol=code,
+                    period="daily",
+                    start_date=start_date,
+                    end_date=end_date,
+                    adjust="",
+                    proxies={"http": None, "https": None},
+                )
             row_count = len(df) if df is not None else 0
             print(f"[Akshare] 返回行数: {row_count}")
             if df is None or df.empty:
@@ -90,7 +100,7 @@ class AkshareStockProvider(DataProvider):
                 period=freq,
                 start_date=start,
                 end_date=end,
-                adjust="qfq",
+                adjust="",
                 proxies={"http": None, "https": None},
             )
             row_count = len(df) if df is not None else 0
