@@ -42,7 +42,8 @@ def data_ingestion(state: TAState) -> TAState:
         market_data = {
             "data_source": provider_name,
             "data_available": False,
-            "last_update": datetime.now().isoformat()
+            "last_update": datetime.now().isoformat(),
+            "available_timeframes": []
         }
 
         # 日线
@@ -61,6 +62,7 @@ def data_ingestion(state: TAState) -> TAState:
                 "daily_volume_trend": vol_trend,
                 "data_available": True
             })
+            market_data["available_timeframes"].append("1d")
 
         # 30分钟
         df_30m = provider.get_minute(state["current_symbol"], start_date, end_date, freq="30min")
@@ -69,10 +71,11 @@ def data_ingestion(state: TAState) -> TAState:
             prev = float(df_30m["close"].iloc[-2]) if len(df_30m) > 1 and "close" in df_30m.columns else None
             change_pct = round((latest - prev) / prev * 100, 2) if prev else None
             market_data.update({
-                "30m_latest_price": latest,
-                "30m_change_pct": change_pct,
+                "tf_30m_latest_price": latest,
+                "tf_30m_change_pct": change_pct,
                 "data_available": True
             })
+            market_data["available_timeframes"].append("30m")
 
         # 3分钟
         df_3m = provider.get_minute(state["current_symbol"], start_date, end_date, freq="3min")
@@ -81,10 +84,11 @@ def data_ingestion(state: TAState) -> TAState:
             prev = float(df_3m["close"].iloc[-2]) if len(df_3m) > 1 and "close" in df_3m.columns else None
             change_pct = round((latest - prev) / prev * 100, 2) if prev else None
             market_data.update({
-                "3m_latest_price": latest,
-                "3m_change_pct": change_pct,
+                "tf_3m_latest_price": latest,
+                "tf_3m_change_pct": change_pct,
                 "data_available": True
             })
+            market_data["available_timeframes"].append("3m")
 
         state["market_data"] = market_data
 
