@@ -99,8 +99,8 @@ def initialize_state(state: TAState) -> TAState:
     color_print(f"  - 最大分析轮次: {state['max_rounds']}", Colors.OKCYAN)
     color_print("="*70, Colors.BOLD)
     # Pilot: new DataProvider (minimal change, old code in nodes kept)
-    # provider = get_data_provider("tushare_futures")
-    # df = provider.get_daily(symbol, start_date, end_date)
+    provider = get_data_provider("tushare_futures")
+    # df = provider.get_daily(symbol, start_date, end_date)  # 实际调用留给 data_ingestion 节点
     return state
 
 
