@@ -1,4 +1,5 @@
 import pandas as pd
+import tushare as ts
 from typing import Any, Dict, Optional
 from datetime import datetime
 
@@ -12,7 +13,6 @@ class TushareStockProvider(DataProvider):
         if pro is not None:
             self.pro = pro
         else:
-            import tushare as ts
             if token:
                 ts.set_token(token)
             self.pro = ts.pro_api()
