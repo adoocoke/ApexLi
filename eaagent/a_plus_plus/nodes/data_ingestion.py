@@ -49,24 +49,25 @@ def data_ingestion(state: TAState) -> TAState:
             if "vol" in df.columns and len(df) > 1:
                 vol_trend = "increasing" if df["vol"].iloc[-1] > df["vol"].iloc[-2] else "decreasing"
 
-            summary = {
+            state["market_data"] = {
                 "latest_price": latest,
                 "price_change_pct": change_pct,
                 "volume_trend": vol_trend,
                 "data_source": provider_name,
                 "data_available": True,
-                "rows": len(df)
+                "last_update": datetime.now().isoformat()
             }
-            state.setdefault("market_data", {})["daily_summary"] = summary
         else:
-            state.setdefault("market_data", {})["daily_summary"] = {
+            state["market_data"] = {
                 "data_source": provider_name,
-                "data_available": False
+                "data_available": False,
+                "last_update": datetime.now().isoformat()
             }
     except Exception:
-        state.setdefault("market_data", {})["daily_summary"] = {
+        state["market_data"] = {
             "data_source": provider_name,
-            "data_available": False
+            "data_available": False,
+            "last_update": datetime.now().isoformat()
         }
 
     return state
