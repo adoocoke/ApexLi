@@ -1,3 +1,6 @@
+import pytest
+pytest.importorskip("examples")
+
 """
 futures_minute_example.py 的测试
 """
