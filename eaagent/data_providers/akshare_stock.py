@@ -55,6 +55,7 @@ class AkshareStockProvider(DataProvider):
                 start_date=start.replace("-", ""),
                 end_date=end.replace("-", ""),
                 adjust="",
+                proxies={"http": None, "https": None},
             )
             row_count = len(df) if df is not None else 0
             print(f"[Akshare] 返回行数: {row_count}")
@@ -94,6 +95,7 @@ class AkshareStockProvider(DataProvider):
                 start_date=start.replace("-", ""),
                 end_date=end.replace("-", ""),
                 adjust="qfq",
+                proxies={"http": None, "https": None},
             )
             if df is None or df.empty:
                 return pd.DataFrame()
