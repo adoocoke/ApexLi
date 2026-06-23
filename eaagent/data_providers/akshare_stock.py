@@ -50,7 +50,6 @@ class AkshareStockProvider(DataProvider):
                 start_date=start_date,
                 end_date=end_date,
                 adjust="qfq",
-                proxies={"http": None, "https": None},
             )
             if df is None or df.empty:
                 print("[Akshare] qfq 返回空，尝试 adjust=''")
