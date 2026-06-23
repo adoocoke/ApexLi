@@ -57,3 +57,4 @@ reproduce_tushare_issue.py
 !design/**/*.md
 !README.md
 !todo/**/*.md
+.aider*
