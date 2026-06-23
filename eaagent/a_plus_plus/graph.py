@@ -24,6 +24,7 @@ from .utils.console import color_print, Colors
 # ==================== 节点模块 ====================
 from .nodes import persist, data_ingestion
 from .nodes.observation import structured_observation
+from eaagent.data_providers.factory import get_data_provider
 
 
 def create_initial_state(symbol: str = "RB2605.SHF") -> TAState:
@@ -97,6 +98,9 @@ def initialize_state(state: TAState) -> TAState:
 
     color_print(f"  - 最大分析轮次: {state['max_rounds']}", Colors.OKCYAN)
     color_print("="*70, Colors.BOLD)
+    # Pilot: new DataProvider (minimal change, old code in nodes kept)
+    # provider = get_data_provider("tushare_futures")
+    # df = provider.get_daily(symbol, start_date, end_date)
     return state
 
 
