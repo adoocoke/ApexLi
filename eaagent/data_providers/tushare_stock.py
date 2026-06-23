@@ -58,11 +58,20 @@ class TushareStockProvider(DataProvider):
     ) -> pd.DataFrame:
         try:
             ts_code = self._normalize_symbol(symbol)
+
+            # 兼容映射：3min 不支持，映射为 5min
+            if freq == "3min":
+                freq = "5min"
+
+            # 转换日期格式为 Tushare 分钟接口需要的格式
+            start_time = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:]} 09:00:00"
+            end_time = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:]} 15:00:00"
+
             df = self.pro.stk_mins(
                 ts_code=ts_code,
                 freq=freq,
-                start_date=start_date,
-                end_date=end_date
+                start_time=start_time,
+                end_time=end_time
             )
             if df is None or df.empty:
                 return pd.DataFrame()

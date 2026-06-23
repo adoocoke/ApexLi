@@ -78,7 +78,7 @@ def data_ingestion(state: TAState) -> TAState:
             market_data["available_timeframes"].append("30m")
 
         # 3分钟
-        df_3m = provider.get_minute(state["current_symbol"], start_date, end_date, freq="3min")
+        df_3m = provider.get_minute(state["current_symbol"], start_date, end_date, freq="5min")
         if df_3m is not None and not df_3m.empty:
             latest = float(df_3m["close"].iloc[-1]) if "close" in df_3m.columns else None
             prev = float(df_3m["close"].iloc[-2]) if len(df_3m) > 1 and "close" in df_3m.columns else None
