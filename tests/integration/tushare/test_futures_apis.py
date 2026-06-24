@@ -1,4 +1,12 @@
 import pandas as pd
+from datetime import datetime, timedelta
+
+
+def get_recent_3m_dates():
+    """获取最近3个月的日期范围"""
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=90)
+    return start_date.strftime("%Y%m%d"), end_date.strftime("%Y%m%d")
 
 
 class TestFuturesAPIs:
@@ -11,23 +19,21 @@ class TestFuturesAPIs:
             print("⚠️ fut_basic 返回为空，可能是权限不足")
 
     def test_fut_daily(self, tushare_pro):
-        """测试期货日线行情"""
+        """测试期货日线行情（使用当前活跃合约 + 最近3个月数据）"""
+        start_date, end_date = get_recent_3m_dates()
         df = tushare_pro.fut_daily(
-            ts_code='RB2505.SHF',
-            start_date='20250401',
-            end_date='20250410'
+            ts_code='RB2609.SHF',           # 当前较活跃的合约
+            start_date=start_date,
+            end_date=end_date
         )
         assert isinstance(df, pd.DataFrame)
         if df.empty:
-            print("⚠️ fut_daily 返回为空，可能是权限不足或合约已到期")
+            print(f"⚠️ fut_daily 返回为空，合约: RB2609.SHF, 日期: {start_date} ~ {end_date}")
 
     def test_fut_holding(self, tushare_pro):
         """测试每日成交持仓排名"""
-        # 使用 trade_date 单日查询（最稳定）
         df = tushare_pro.fut_holding(trade_date='20250410')
         assert isinstance(df, pd.DataFrame)
-        if df.empty:
-            print("⚠️ fut_holding 返回为空（该日期可能无数据）")
 
     def test_fut_wsr(self, tushare_pro):
         """测试仓单日报"""
