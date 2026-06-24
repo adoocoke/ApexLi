@@ -24,6 +24,7 @@ from .utils.console import color_print, Colors
 # ==================== 节点模块 ====================
 from .nodes import persist, data_ingestion
 from .nodes.observation import structured_observation
+from eaagent.data_providers.factory import get_data_provider
 
 
 def create_initial_state(symbol: str = "RB2605.SHF") -> TAState:

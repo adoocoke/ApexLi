@@ -4,14 +4,14 @@ on:
   push:
     branches:
       - main
-      - 'refactor/**'      # 新增：支持重构分支
-      - 'feature/**'
+      - 'refactor/**'      # ← 新增：支持重构分支
+      - 'feature/**'       # ← 新增：支持功能分支（可选）
   pull_request:
     branches: [ main ]
 
 jobs:
   test:
-    name: Run tests and collect coverage
+    name: Run tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -44,20 +44,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,tushare,langgraph]"
 
-      - name: Run tests with coverage
-        env:
-          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
-          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          USE_MOCK_OBSERVATION: "true"
+      - name: Run tests
         run: |
-          python -m pytest \
-            --cov=eaagent \
-            --cov-branch \
-            --cov-report=xml \
-            --cov-report=term-missing
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
+          python -m pytest tests/ -v --tb=short

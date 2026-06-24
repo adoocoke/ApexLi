@@ -50,6 +50,7 @@ artifacts/
 *.bak
 *.db
 reproduce_tushare_issue.py
+.aider/
 
 # ==================== 文档 ====================
 *.md
