@@ -109,7 +109,7 @@ def run_analysis(symbol: str, data_source: str, progress=gr.Progress()):
     return result_md, accordions
 
 
-with gr.Blocks(title="EA Agent - Advanced Analysis", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="EA Agent - Advanced Analysis") as demo:
     gr.Markdown("# EA Agent - Trading Analysis (LangGraph)")
 
     with gr.Row():
@@ -142,4 +142,4 @@ with gr.Blocks(title="EA Agent - Advanced Analysis", theme=gr.themes.Soft()) as 
     )
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    demo.launch(server_name="127.0.0.1", server_port=7860)
