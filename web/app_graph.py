@@ -2,16 +2,13 @@ import os
 import gradio as gr
 from eaagent.a_plus_plus.graph import build_graph, create_initial_state
 
-# Global recorder for LLM interactions (per run)
 llm_interactions = []
 
 
 def run_analysis(symbol: str, data_source: str, progress=gr.Progress()):
-    """Run the full LangGraph analysis and collect LLM interactions."""
     global llm_interactions
     llm_interactions = []
 
-    # Set environment variables for data source
     if data_source == "Mock":
         os.environ["USE_MOCK_OBSERVATION"] = "true"
         os.environ["DATA_PROVIDER"] = "mock"
@@ -27,7 +24,6 @@ def run_analysis(symbol: str, data_source: str, progress=gr.Progress()):
     app = build_graph()
     state = create_initial_state(symbol)
 
-    # Monkey-patch call_llm to record interactions
     from eaagent.a_plus_plus.utils import llm as llm_module
     original_call_llm = llm_module.call_llm
 
@@ -49,10 +45,8 @@ def run_analysis(symbol: str, data_source: str, progress=gr.Progress()):
 
     progress(1.0, desc="Analysis complete!")
 
-    # Restore original function
     llm_module.call_llm = original_call_llm
 
-    # Build result summary
     rounds = final_state.get("analysis_rounds", 0)
     signals = final_state.get("signals", [])
     final_signal = signals[-1] if signals else {}
@@ -73,15 +67,16 @@ def run_analysis(symbol: str, data_source: str, progress=gr.Progress()):
 ```
 """
 
-    # Build per-round accordions
-    accordions = []
-    # Group interactions by round (simple heuristic: every 2 calls = one round)
     for i in range(0, len(llm_interactions), 2):
         round_num = (i // 2) + 1
         sig = llm_interactions[i] if i < len(llm_interactions) else {}
-        crit = llm_interactions[i+1] if i+1 < len(llm_interactions) else {}
+        crit = llm_interactions[i + 1] if i + 1 < len(llm_interactions) else {}
 
-        content = f"""### signal_generation
+        result_md += f"""
+
+---
+
+### Round {round_num} - signal_generation
 **Prompt:**
 ```markdown
 {sig.get('prompt', 'N/A')}
@@ -92,7 +87,7 @@ def run_analysis(symbol: str, data_source: str, progress=gr.Progress()):
 {sig.get('response', 'N/A')}
 ```
 
-### llm_critique
+### Round {round_num} - llm_critique
 **Prompt:**
 ```markdown
 {crit.get('prompt', 'N/A')}
@@ -103,17 +98,15 @@ def run_analysis(symbol: str, data_source: str, progress=gr.Progress()):
 {crit.get('response', 'N/A')}
 ```
 """
-        acc = gr.Accordion(label=f"Round {round_num} Analysis", open=(round_num >= max(1, rounds-1)))
-        accordions.append((acc, content))
 
-    return result_md, accordions
+    return result_md
 
 
 with gr.Blocks(title="EA Agent - Advanced Analysis") as demo:
     gr.Markdown("# EA Agent - Trading Analysis (LangGraph)")
 
     with gr.Row():
-        symbol_input = gr.Textbox(label="Symbol", value="RB2605.SHF", placeholder="e.g. RB2605.SHF or 000001")
+        symbol_input = gr.Textbox(label="Symbol", value="RB2605.SHF")
         data_source = gr.Dropdown(
             choices=["Mock", "Tushare", "Akshare"],
             value="Mock",
@@ -121,24 +114,12 @@ with gr.Blocks(title="EA Agent - Advanced Analysis") as demo:
         )
 
     analyze_btn = gr.Button("Start Analysis", variant="primary")
-
     result_output = gr.Markdown(label="Analysis Result")
-    round_accordions = gr.Column()
-
-    def on_analyze(symbol, source):
-        result_md, acc_list = run_analysis(symbol, source)
-        # Create dynamic accordions
-        components = []
-        for acc, content in acc_list:
-            with acc:
-                gr.Markdown(content)
-            components.append(acc)
-        return result_md, gr.Column(components)
 
     analyze_btn.click(
-        fn=on_analyze,
+        fn=run_analysis,
         inputs=[symbol_input, data_source],
-        outputs=[result_output, round_accordions]
+        outputs=[result_output]
     )
 
 if __name__ == "__main__":
