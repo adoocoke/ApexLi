@@ -1,49 +1,34 @@
 from datetime import datetime
+import os
 from eaagent.a_plus_plus.types import TAState
 from eaagent.tools.tushare_futures import get_futures_daily_recent
-
+from eaagent.a_plus_plus.data_provider import get_market_data
 
 def data_ingestion(state: TAState) -> TAState:
     state["iteration"] += 1
     print(f"\n[第 {state['iteration']} 轮] 数据获取阶段")
 
-    symbol = state["current_symbol"]
-    is_futures = any(x in symbol.upper() for x in [".SHF", ".DCE", ".CZC", ".INE"])
+    use_mock = os.getenv("USE_MOCK_OBSERVATION", "true").lower() == "true"
 
-    if is_futures:
-        print(f"[Data] 使用 Tushare 获取 {symbol} 最近3个月日线数据")
+    if not use_mock:
         try:
-            df = get_futures_daily_recent(ts_code=symbol, months=3)
+            # 使用 5 个月数据
+            df = get_futures_daily_recent(state["current_symbol"], months=5)
             if df is not None and not df.empty:
-                # 只保留关键字段，并转成 list[dict]，避免 DataFrame 序列化问题
-                df_clean = df[["trade_date", "open", "high", "low", "close", "vol", "oi"]].copy()
-                
-                state["market_data"] = {
-                    "daily_df": df_clean.to_dict(orient="records"),  # 转成可序列化的格式
-                    "data_source": "tushare_futures",
-                    "data_available": True,
-                    "last_update": datetime.now().isoformat()
-                }
+                state.setdefault("market_data", {})["daily_df"] = df.to_dict(orient="records")
+                state["market_data"]["data_source"] = "TUSHARE"
+                state["market_data"]["data_available"] = True
+                state["market_data"]["last_update"] = datetime.now().isoformat()
+                print(f"[Data] 使用 Tushare 获取 {state['current_symbol']} 最近5个月日线数据")
                 print(f"[Data] 成功获取 {len(df)} 条日线数据")
-            else:
-                state["market_data"] = {
-                    "data_source": "tushare_futures",
-                    "data_available": False,
-                    "last_update": datetime.now().isoformat()
-                }
-                print("[Data] 获取数据为空")
+                return state
         except Exception as e:
-            print(f"[Data] 获取 Tushare 数据失败: {e}")
-            state["market_data"] = {
-                "data_source": "tushare_futures",
-                "data_available": False,
-                "last_update": datetime.now().isoformat()
-            }
-    else:
-        print(f"[Data] 当前品种 {symbol} 非期货，暂不自动获取数据")
-        state["market_data"] = {
-            "data_available": False,
-            "last_update": datetime.now().isoformat()
-        }
+            print(f"[Data] Tushare 获取失败: {e}")
 
+    # Mock 模式或降级
+    state["market_data"] = get_market_data(
+        state.get("data_source", "mock"),
+        state["current_symbol"],
+        state.get("timeframes", ["5m", "30m", "1d"])
+    )
     return state

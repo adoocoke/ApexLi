@@ -3,47 +3,37 @@ from datetime import datetime, timedelta
 from typing import Optional
 import tushare as ts
 
-
 def get_futures_daily_recent(
-    ts_code: str,
-    months: int = 3,
+    ts_code: str, 
+    months: int = 5,           # ← 默认改为 5 个月
     pro: Optional[object] = None
 ) -> pd.DataFrame:
     """
-    获取指定期货合约最近 N 个月的日线数据
-
-    Args:
-        ts_code: 期货合约代码，例如 'RB2609.SHF'
-        months: 获取最近几个月的数据，默认 3 个月
-        pro: tushare pro_api 对象，如果为 None 则自动初始化
-
-    Returns:
-        pandas DataFrame，包含日线数据
+    获取期货最近 N 个月的日线数据（包含 oi_chg）
+    默认使用最近 5 个月数据，适合主力合约分析
     """
     if pro is None:
         import os
         token = os.getenv("TUSHARE_TOKEN")
         if not token:
-            raise ValueError("环境变量 TUSHARE_TOKEN 未设置")
-        ts.set_token(token)
-        pro = ts.pro_api()
+            raise ValueError("请设置环境变量 TUSHARE_TOKEN")
+        pro = ts.pro_api(token)
 
-    # 计算日期范围
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=months * 30)
+    end_date = datetime.now().strftime("%Y%m%d")
+    start_date = (datetime.now() - timedelta(days=months * 30 + 10)).strftime("%Y%m%d")
 
-    start_date_str = start_date.strftime("%Y%m%d")
-    end_date_str = end_date.strftime("%Y%m%d")
+    try:
+        df = pro.fut_daily(
+            ts_code=ts_code,
+            start_date=start_date,
+            end_date=end_date,
+            fields="ts_code,trade_date,open,high,low,close,settle,vol,amount,oi,oi_chg"
+        )
+        if df is None or df.empty:
+            return pd.DataFrame()
 
-    df = pro.fut_daily(
-        ts_code=ts_code,
-        start_date=start_date_str,
-        end_date=end_date_str
-    )
-
-    if df is None or df.empty:
+        df = df.sort_values("trade_date").reset_index(drop=True)
+        return df
+    except Exception as e:
+        print(f"[Tushare] 获取 {ts_code} 日线失败: {e}")
         return pd.DataFrame()
-
-    # 按交易日期排序
-    df = df.sort_values("trade_date").reset_index(drop=True)
-    return df
