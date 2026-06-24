@@ -3,6 +3,10 @@ name: Create User Stories
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   create-issues:
     runs-on: ubuntu-latest
@@ -11,70 +15,67 @@ jobs:
 
       - name: Create Labels
         run: |
-          gh label create "Epic: Structured-LLM" --color "0E8A16" --description "Epic for Structured LLM Communication" || true
-          gh label create "Epic: Multi-round-Loop" --color "0E8A16" --description "Epic for Multi-round Analysis" || true
-          gh label create "Epic: Playbook-Strategy" --color "0E8A16" --description "Epic for Playbook Strategy" || true
-          gh label create "Epic: Observability" --color "0E8A16" --description "Epic for Observability" || true
-          gh label create "Epic: Engineering" --color "0E8A16" --description "Epic for Engineering" || true
-          gh label create "Priority: P0" --color "D93F0B" --description "Highest priority" || true
-          gh label create "Priority: P1" --color "FBCA04" --description "High priority" || true
-          gh label create "Priority: P2" --color "0E8A16" --description "Normal priority" || true
-          gh label create "Type: Story" --color "5319E7" --description "User Story" || true
+          declare -A labels=(
+            ["Epic: Structured-LLM"]="0E8A16,Epic for Structured LLM Communication"
+            ["Epic: Multi-round-Loop"]="0E8A16,Epic for Multi-round Analysis"
+            ["Epic: Playbook-Strategy"]="0E8A16,Epic for Playbook Strategy"
+            ["Epic: Observability"]="0E8A16,Epic for Observability"
+            ["Epic: Engineering"]="0E8A16,Epic for Engineering"
+            ["Priority: P0"]="D93F0B,Highest priority"
+            ["Priority: P1"]="FBCA04,High priority"
+            ["Priority: P2"]="0E8A16,Normal priority"
+            ["Type: Story"]="5319E7,User Story"
+          )
+
+          for label in "${!labels[@]}"; do
+            color=$(echo "${labels[$label]}" | cut -d',' -f1)
+            desc=$(echo "${labels[$label]}" | cut -d',' -f2-)
+            gh label create "$label" --color "$color" --description "$desc" --repo ${{ github.repository }} || true
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Epics (with duplicate check)
+      - name: Create Epics and Stories
         run: |
-          create_epic() {
-            local title="$1"
-            local body="$2"
-            local label="$3"
-            if ! gh issue list --repo ${{ github.repository }} --search "in:title \"$title\"" --json number --jq 'length > 0' | grep -q true; then
-              gh issue create --repo ${{ github.repository }} --title "$title" --body "$body" --label "$label"
-            else
-              echo "Issue already exists: $title"
-            fi
-          }
+          REPO=${{ github.repository }}
 
-          create_epic "[Epic] Structured LLM Communication" "包含 EA-001 ~ EA-003" "Epic: Structured-LLM"
-          create_epic "[Epic] Multi-round Analysis Loop" "包含 EA-004 ~ EA-005" "Epic: Multi-round-Loop"
-          create_epic "[Epic] Playbook Strategy" "包含 EA-006 ~ EA-007" "Epic: Playbook-Strategy"
-          create_epic "[Epic] Observability" "包含 EA-008 ~ EA-009" "Epic: Observability"
-          create_epic "[Epic] Engineering" "包含 EA-010" "Epic: Engineering"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create All Stories (with duplicate check)
-        run: |
-          create_story() {
+          create_issue() {
             local title="$1"
             local body="$2"
             local labels="$3"
-            if ! gh issue list --repo ${{ github.repository }} --search "in:title \"$title\"" --json number --jq 'length > 0' | grep -q true; then
-              gh issue create --repo ${{ github.repository }} --title "$title" --body "$body" --label "$labels"
-            else
-              echo "Issue already exists: $title"
+            local type="$4"   # Epic or Story
+
+            # 检查是否已存在
+            if gh issue list --repo "$REPO" --search "in:title \"$title\"" --json number --jq 'length > 0' | grep -q true; then
+              echo "✅ [$type] already exists: $title"
+              return
             fi
+
+            echo "🚀 Creating [$type]: $title"
+            gh issue create --repo "$REPO" --title "$title" --body "$body" --label "$labels"
           }
 
-          # Epic 1: Structured LLM Communication
-          create_story "EA-001: 结构化市场观察输出" "As a 交易者, I want 结构化市场观察输出. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Structured-LLM,Priority: P0,Type: Story"
-          create_story "EA-002: 结构化交易信号输出" "As a 系统, I want 结构化交易信号输出. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Structured-LLM,Priority: P0,Type: Story"
-          create_story "EA-003: 结构化 Critique 判断" "As a 系统, I want llm_critique 能引用结构化 Observation 进行判断. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Structured-LLM,Priority: P1,Type: Story"
+          # ==================== Epics ====================
+          create_issue "[Epic] Structured LLM Communication" "包含 EA-001 ~ EA-003" "Epic: Structured-LLM,Priority: P0,Type: Story" "Epic"
+          create_issue "[Epic] Multi-round Analysis Loop" "包含 EA-004 ~ EA-005" "Epic: Multi-round-Loop,Priority: P0,Type: Story" "Epic"
+          create_issue "[Epic] Playbook Strategy" "包含 EA-006 ~ EA-007" "Epic: Playbook-Strategy,Priority: P1,Type: Story" "Epic"
+          create_issue "[Epic] Observability" "包含 EA-008 ~ EA-009" "Epic: Observability,Priority: P1,Type: Story" "Epic"
+          create_issue "[Epic] Engineering" "包含 EA-010" "Epic: Engineering,Priority: P2,Type: Story" "Epic"
 
-          # Epic 2: Multi-round Analysis Loop
-          create_story "EA-004: 智能多轮分析控制" "As a 交易者, I want 系统能在质量不足时自动多轮分析. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Multi-round-Loop,Priority: P0,Type: Story"
-          create_story "EA-005: 最终报告展示多轮分析路径" "As a 交易者, I want 在最终报告中看到完整的多轮分析过程. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Multi-round-Loop,Priority: P1,Type: Story"
+          # ==================== Stories ====================
+          create_issue "EA-001: 结构化市场观察输出" "As a 交易者, I want 结构化市场观察输出. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Structured-LLM,Priority: P0,Type: Story" "Story"
+          create_issue "EA-002: 结构化交易信号输出" "As a 系统, I want 结构化交易信号输出. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Structured-LLM,Priority: P0,Type: Story" "Story"
+          create_issue "EA-003: 结构化 Critique 判断" "As a 系统, I want llm_critique 能引用结构化 Observation 进行判断. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Structured-LLM,Priority: P1,Type: Story" "Story"
 
-          # Epic 3: Playbook Strategy
-          create_story "EA-006: 支持 Core Rules 策略" "As a 交易者, I want 能通过配置使用精简核心规则. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Playbook-Strategy,Priority: P1,Type: Story"
-          create_story "EA-007: 多轮中展示当前 Playbook 策略" "As a 交易者, I want 在分析过程中看到当前使用的 Playbook 策略. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Playbook-Strategy,Priority: P2,Type: Story"
+          create_issue "EA-004: 智能多轮分析控制" "As a 交易者, I want 系统能在质量不足时自动多轮分析. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Multi-round-Loop,Priority: P0,Type: Story" "Story"
+          create_issue "EA-005: 最终报告展示多轮分析路径" "As a 交易者, I want 在最终报告中看到完整的多轮分析过程. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Multi-round-Loop,Priority: P1,Type: Story" "Story"
 
-          # Epic 4: Observability
-          create_story "EA-008: Console 输出颜色区分" "As a 交易者, I want 控制台输出使用颜色区分不同轮次和组件. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Observability,Priority: P1,Type: Story"
-          create_story "EA-009: Sensors 检查结果突出显示" "As a 交易者, I want Sensors 检查结果在有问题时用醒目颜色显示. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Observability,Priority: P1,Type: Story"
+          create_issue "EA-006: 支持 Core Rules 策略" "As a 交易者, I want 能通过配置使用精简核心规则. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Playbook-Strategy,Priority: P1,Type: Story" "Story"
+          create_issue "EA-007: 多轮中展示当前 Playbook 策略" "As a 交易者, I want 在分析过程中看到当前使用的 Playbook 策略. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Playbook-Strategy,Priority: P2,Type: Story" "Story"
 
-          # Epic 5: Engineering
-          create_story "EA-010: 节点模块化拆分" "As a 开发者, I want 分析节点被拆分成独立模块. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Engineering,Priority: P2,Type: Story"
+          create_issue "EA-008: Console 输出颜色区分" "As a 交易者, I want 控制台输出使用颜色区分不同轮次和组件. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Observability,Priority: P1,Type: Story" "Story"
+          create_issue "EA-009: Sensors 检查结果突出显示" "As a 交易者, I want Sensors 检查结果在有问题时用醒目颜色显示. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Observability,Priority: P1,Type: Story" "Story"
+
+          create_issue "EA-010: 节点模块化拆分" "As a 开发者, I want 分析节点被拆分成独立模块. See docs/user-journey-and-stories.md for full details and acceptance criteria." "Epic: Engineering,Priority: P2,Type: Story" "Story"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
