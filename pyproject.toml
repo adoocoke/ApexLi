@@ -4,10 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eaagent"
-version = "0.1.0"
-description = "Easy ReAct Agent powered by Grok (xAI)"
+version = "0.2.0"
+description = "ApexLi - 高级交易智能体框架 | 支持股票与期货的多数据源统一抽象层"
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+    { name = "adoocoke", email = "99374085@qq.com" }
+]
+license = { text = "MIT" }
+
 dependencies = [
     "openai>=1.55.0",
     "python-dotenv>=1.0.0",

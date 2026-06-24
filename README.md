@@ -13,6 +13,16 @@ ApexLi is a high-end trading intelligence framework built on **LangGraph**, deli
 ## Project Overview
 
 ApexLi provides a professional-grade foundation for building production-ready trading agents. By abstracting data access behind a clean `DataProvider` interface and `Factory` pattern, it enables seamless switching between multiple data sources while maintaining strict engineering standards.
+| 特性                    | 说明 |
+|-------------------------|------|
+| **DataProvider 架构**   | 统一抽象层，支持期货（TushareFuturesProvider）和股票（TushareStockProvider） |
+| **Factory 模式**        | 通过 `get_data_provider(name)` 统一创建 Provider |
+| **多时间框架支持**      | 日线 + 30分钟 + 5分钟数据获取（data_ingestion 节点） |
+| **多轮自动分析**        | 支持最多 5 轮自动迭代分析 |
+| **Playbook Strategy**   | 支持 `Full` / `Core` / `IdOnly` 三种 Playbook 注入策略 |
+| **结构化 LLM 输出**     | 观察和信号节点均输出 JSON |
+| **Mock / 真实数据**     | 通过 `USE_MOCK_OBSERVATION` 快速切换 |
+| **完整测试覆盖**        | pytest + Makefile 管理测试 |
 
 ---
 
@@ -94,3 +104,4 @@ df = futures_provider.get_daily("RB2605.SHF", "2024-01-01", "2024-06-01")
 ## License
 
 MIT
+# test trigger
