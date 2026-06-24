@@ -78,12 +78,23 @@ class TushareFuturesProvider(DataProvider):
         freq: str = "5min"
     ) -> pd.DataFrame:
         ts_code = self._normalize_symbol(symbol)
+
+        # Tushare fut_min 支持的频率映射
+        freq_map = {
+            "1min": "1min",
+            "5min": "5min",
+            "15min": "15min",
+            "30min": "30min",
+            "60min": "60min",
+        }
+        tushare_freq = freq_map.get(freq, "5min")
+
         try:
             df = self.pro.fut_min(
                 ts_code=ts_code,
                 start_date=start_date,
                 end_date=end_date,
-                freq=freq
+                freq=tushare_freq
             )
             if df.empty:
                 return df

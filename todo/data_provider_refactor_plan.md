@@ -32,4 +32,28 @@
 - `docs/AGENTS.md`
 - `todo/remaining_work.md`
 
-**最后更新**：2026-06-22
+**最后更新**：2026-06-22# DataProvider 重构计划
+
+## 目标
+- 统一股票与期货的数据获取接口
+- 支持 Tushare / Akshare / Mock 多数据源
+- 提升可测试性与可扩展性
+
+## 当前状态
+- ✅ `DataProvider` 抽象基类已完成
+- ✅ `TushareFuturesProvider` / `TushareStockProvider` / `AkshareStockProvider` 已实现
+- ✅ `Factory` 已完成
+- 🔄 `data_ingestion` 节点正在迁移到新 Provider
+
+## 待办事项
+1. [ ] 完善分钟线数据获取（Tushare 分钟线）
+2. [ ] 优化 Akshare 股票数据稳定性
+3. [ ] 增加更多单元测试覆盖边界情况
+4. [ ] 支持聚宽、米筐等新数据源
+5. [ ] 文档更新与示例完善
+
+## 负责人
+- @adoocoke
+
+## 预计完成时间
+2026-07-15
