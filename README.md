@@ -1,107 +1,144 @@
-# ApexLi
+<div align="center">
 
-> **Advanced Multi-Source DataProvider Trading Agent Framework**
+# 🚀 ApexLi
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Status](https://img.shields.io/badge/Status-Refactoring-orange)](https://github.com/adoocoke/eaagent/tree/refactor/data-provider)
+**高级交易智能体框架**  
+支持股票与期货的多数据源统一抽象层
 
-ApexLi is a high-end trading intelligence framework built on **LangGraph**, delivering transparent, observable, and extensible multi-timeframe analysis for futures and equities through a unified **DataProvider abstraction layer**.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://www.python.org/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-Enabled-FF6B6B)](https://github.com/langchain-ai/langgraph)
+[![Status](https://img.shields.io/badge/Status-Refactoring-yellow)](https://github.com/adoocoke/ApexLi)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
----
-
-## Project Overview
-
-ApexLi provides a professional-grade foundation for building production-ready trading agents. By abstracting data access behind a clean `DataProvider` interface and `Factory` pattern, it enables seamless switching between multiple data sources while maintaining strict engineering standards.
-| 特性                    | 说明 |
-|-------------------------|------|
-| **DataProvider 架构**   | 统一抽象层，支持期货（TushareFuturesProvider）和股票（TushareStockProvider） |
-| **Factory 模式**        | 通过 `get_data_provider(name)` 统一创建 Provider |
-| **多时间框架支持**      | 日线 + 30分钟 + 5分钟数据获取（data_ingestion 节点） |
-| **多轮自动分析**        | 支持最多 5 轮自动迭代分析 |
-| **Playbook Strategy**   | 支持 `Full` / `Core` / `IdOnly` 三种 Playbook 注入策略 |
-| **结构化 LLM 输出**     | 观察和信号节点均输出 JSON |
-| **Mock / 真实数据**     | 通过 `USE_MOCK_OBSERVATION` 快速切换 |
-| **完整测试覆盖**        | pytest + Makefile 管理测试 |
+</div>
 
 ---
 
-## ✨ Core Features
+## ✨ 项目简介
 
-- **DataProvider + Factory Architecture** — Unified interface for all data sources with pluggable implementations
-- **Multi-Source Support** — Tushare Futures, Tushare Stock, and Akshare Stock providers out of the box
-- **Multi-Timeframe Data Extraction** — Daily, 30-minute, and 5-minute data with structured output
-- **Deep LangGraph Integration** — Native support in `data_ingestion` nodes and graph execution
-- **Production-Ready Engineering** — Comprehensive unit/integration tests, mock mode, and type safety
+**ApexLi** 是一个面向专业交易者的高级 AI Agent 框架，旨在通过统一的 **DataProvider 抽象层**，灵活接入多种数据源（Tushare、Akshare 等），并与 LangGraph 深度集成，实现股票与期货的多时间框架智能分析。
+
+当前项目正处于 **DataProvider 架构重构** 阶段，目标是打造一个可扩展、高可观测、工程化程度高的交易分析系统。
 
 ---
 
-## 🏗️ Architecture
+## 🧩 核心特性
 
-The `DataProvider` abstraction decouples trading logic from concrete data vendors:
-
-```
-DataProvider (ABC)
-├── TushareFuturesProvider
-├── TushareStockProvider
-└── AkshareStockProvider
-```
-
-All providers are instantiated via:
-
-```python
-from eaagent.data_providers.factory import get_data_provider
-
-provider = get_data_provider("tushare_futures")   # or "tushare_stock", "akshare_stock"
-```
+- 🔄 **多数据源统一抽象**：通过 `DataProvider` + `Factory` 模式，支持 Tushare（期货/股票）和 Akshare（股票）无缝切换
+- 📊 **多时间框架分析**：支持日线 + 分钟线（5m/30m 等）结构化特征提取
+- 🤖 **LangGraph 深度集成**：基于状态图构建可观测、可持久化的多轮分析流程
+- 🧪 **工程化设计**：完整的单元测试 + Mock 支持，CI 自动化
+- 🛡️ **Playbook 策略注入**：支持加载交易规则 playbook，实现规则驱动的分析
 
 ---
 
-## 🚧 Current Status (refactor/data-provider)
+## 🏗️ 当前架构（重构中）
 
-This branch focuses exclusively on the **DataProvider refactoring effort**:
-
-- ✅ Abstract base class + Factory pattern implemented
-- ✅ TushareFuturesProvider, TushareStockProvider, AkshareStockProvider completed
-- ✅ Initial integration into `data_ingestion` node
-- ✅ Full test coverage for providers and factory
-- 🔄 Active iteration — further Akshare enhancements and multi-timeframe optimizations in progress
+| 模块                    | 状态       | 说明                              |
+|-------------------------|------------|-----------------------------------|
+| `DataProvider` (抽象基类) | ✅ 已完成   | 统一接口定义                      |
+| `TushareFuturesProvider`  | ✅ 已完成   | 期货数据支持                      |
+| `TushareStockProvider`    | ✅ 已完成   | Tushare 股票数据支持              |
+| `AkshareStockProvider`    | ✅ 已完成   | Akshare 股票数据支持              |
+| `Factory`                 | ✅ 已完成   | 数据源工厂方法                    |
+| `data_ingestion` 节点     | 🔄 重构中   | 已初步接入新 Provider             |
+| 多时间框架特征提取        | 🔄 重构中   | 日线 + 分钟线支持完善中           |
 
 ---
 
-## 🚀 Quick Start
+## 🚀 快速开始
+
+### 环境准备
 
 ```bash
-git clone https://github.com/adoocoke/eaagent.git
-cd eaagent
-git checkout refactor/data-provider
-pip install -e ".[dev]"
+git clone https://github.com/adoocoke/ApexLi.git
+cd ApexLi
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev,tushare,langgraph]"
 ```
 
-### Basic Usage
+### 运行分析（Mock 模式，推荐先体验）
 
-```python
-from eaagent.data_providers.factory import get_data_provider
+```bash
+python -m eaagent.a_plus_plus.graph
+```
 
-# Switch data sources effortlessly
-futures_provider = get_data_provider("tushare_futures")
-stock_provider   = get_data_provider("tushare_stock")
-akshare_provider = get_data_provider("akshare_stock")
+### 使用真实数据（Tushare）
 
-df = futures_provider.get_daily("RB2605.SHF", "2024-01-01", "2024-06-01")
+```bash
+USE_MOCK_OBSERVATION=false \
+TUSHARE_TOKEN=your_token \
+python -m eaagent.a_plus_plus.graph
+```
+
+### 使用 Akshare（股票）
+
+```bash
+USE_MOCK_OBSERVATION=false \
+DATA_PROVIDER=akshare_stock \
+python -m eaagent.a_plus_plus.graph
 ```
 
 ---
 
-## 🗺️ Roadmap
+## 📍 当前状态
 
-- Complete Akshare futures support
-- Optimize multi-timeframe data ingestion pipeline
-- Full migration from legacy data access layer
+- ✅ DataProvider 抽象层已完成
+- ✅ Tushare / Akshare Provider 已实现
+- ✅ 与 LangGraph 初步集成
+- 🔄 多时间框架数据获取与特征提取正在完善
+- 🔄 可观测性（日志、颜色输出）持续优化
 
 ---
 
-## License
+## 🗺️ 后续规划
 
-MIT
-# test trigger
+- [ ] 完善多时间框架数据获取（尤其是 Tushare 分钟线）
+- [ ] 优化 Akshare 股票数据稳定性
+- [ ] 加强 Prompt 可观测性（完整打印 LLM 沟通过程）
+- [ ] 节点模块化拆分（提高可维护性）
+- [ ] 支持更多数据源（聚宽、米筐等）
+
+---
+
+## 📁 关键目录结构
+
+```
+eaagent/
+├── data_providers/              # 数据源抽象层（核心）
+│   ├── base.py
+│   ├── tushare_futures.py
+│   ├── tushare_stock.py
+│   ├── akshare_stock.py
+│   └── factory.py
+├── a_plus_plus/
+│   ├── graph.py
+│   └── nodes/                   # LangGraph 节点
+└── tests/
+    ├── unit/
+    └── integration/
+```
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+当前重点方向：
+- DataProvider 稳定性与扩展性
+- 多时间框架分析能力
+- Agent 可观测性与调试体验
+
+---
+
+**注意**：本项目仍处于快速迭代阶段，API 可能会有调整。
+
+---
+
+<div align="center">
+
+**Made with ❤️ by adoocoke**
+
+</div>
