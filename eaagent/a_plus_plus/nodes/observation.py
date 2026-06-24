@@ -1,18 +1,36 @@
 from eaagent.a_plus_plus.types import TAState
-from eaagent.a_plus_plus.data_provider import get_historical_data
 from eaagent.a_plus_plus.utils.console import color_print, Colors
 import json
+import pandas as pd
+from typing import List, Dict, Any
+
+
+def _prepare_daily_data(daily_data: List[Dict[str, Any]], max_rows: int = 30) -> str:
+    """将日线数据处理成简洁的文本，供 LLM 使用"""
+    if not daily_data:
+        return "历史日线数据为空"
+
+    df = pd.DataFrame(daily_data)
+    
+    # 只保留关键字段
+    keep_cols = ["trade_date", "open", "high", "low", "close", "vol", "oi"]
+    df = df[[c for c in keep_cols if c in df.columns]]
+    
+    # 只取最近 N 根K线
+    df = df.tail(max_rows)
+    
+    # 转成 CSV 字符串（比直接 dump 整个 DataFrame 更省 token）
+    return df.to_csv(index=False)
 
 
 def structured_observation(state: TAState) -> TAState:
     color_print(f"[第 {state['iteration']} 轮] 结构化市场观察", Colors.OKCYAN)
 
-    df = get_historical_data(
-        symbol=state['current_symbol'],
-        data_source=state['data_source']
-    )
+    # 优先从 market_data 里取数据（和 data_ingestion 对接）
+    market_data = state.get("market_data", {})
+    daily_data = market_data.get("daily_df", [])
 
-    if df.empty:
+    if not daily_data:
         obs_data = {
             "trend": {"mid_term": "数据缺失", "short_term": "数据缺失"},
             "key_levels": {"strong_resistance": [], "strong_support": []},
@@ -25,14 +43,14 @@ def structured_observation(state: TAState) -> TAState:
         state["observations"].append(obs_data)
         return state
 
-    data_str = df.to_csv(index=False)
+    # 把日线数据处理成 LLM 能看懂的文本
+    data_str = _prepare_daily_data(daily_data, max_rows=30)
 
-    prompt = f"""以下是 {state['current_symbol']} 的完整历史日线数据（CSV 格式）：
+    prompt = f"""以下是 {state['current_symbol']} 最近的日线数据（CSV 格式，最多30根K线）：
 
 {data_str}
 
-请基于以上全部历史数据进行专业的技术分析，并**严格按照以下 JSON 格式**返回结果（不要有任何额外文字说明）：
-
+请基于以上数据进行专业的技术分析，并**严格按照以下 JSON 格式**返回结果（不要有任何额外文字说明）：
 {{
   "trend": {{
     "mid_term": "明显下跌 / 反弹修复 / 震荡筑底 / 趋势反转 等",
@@ -50,6 +68,7 @@ def structured_observation(state: TAState) -> TAState:
 }}"""
 
     system_prompt = state["messages"][0]["content"] if state["messages"] else ""
+
     from eaagent.a_plus_plus.utils.llm import call_llm
     response = call_llm(prompt, system_prompt)
 

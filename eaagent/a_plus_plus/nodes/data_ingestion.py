@@ -1,5 +1,4 @@
 from datetime import datetime
-import os
 from eaagent.a_plus_plus.types import TAState
 from eaagent.tools.tushare_futures import get_futures_daily_recent
 
@@ -9,8 +8,6 @@ def data_ingestion(state: TAState) -> TAState:
     print(f"\n[第 {state['iteration']} 轮] 数据获取阶段")
 
     symbol = state["current_symbol"]
-
-    # 判断是否为期货品种
     is_futures = any(x in symbol.upper() for x in [".SHF", ".DCE", ".CZC", ".INE"])
 
     if is_futures:
@@ -18,8 +15,11 @@ def data_ingestion(state: TAState) -> TAState:
         try:
             df = get_futures_daily_recent(ts_code=symbol, months=3)
             if df is not None and not df.empty:
+                # 只保留关键字段，并转成 list[dict]，避免 DataFrame 序列化问题
+                df_clean = df[["trade_date", "open", "high", "low", "close", "vol", "oi"]].copy()
+                
                 state["market_data"] = {
-                    "daily_df": df,
+                    "daily_df": df_clean.to_dict(orient="records"),  # 转成可序列化的格式
                     "data_source": "tushare_futures",
                     "data_available": True,
                     "last_update": datetime.now().isoformat()
