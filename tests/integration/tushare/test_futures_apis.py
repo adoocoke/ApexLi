@@ -7,7 +7,6 @@ class TestFuturesAPIs:
         """测试期货合约列表接口"""
         df = tushare_pro.fut_basic(exchange='', fut_type='1')
         assert isinstance(df, pd.DataFrame)
-        # 允许为空（部分账号可能没权限）
         if df.empty:
             print("⚠️ fut_basic 返回为空，可能是权限不足")
 
@@ -50,3 +49,25 @@ class TestFuturesAPIs:
         assert isinstance(df, pd.DataFrame)
         if df.empty:
             print("⚠️ trade_cal 返回为空，可能是权限不足")
+
+    def test_daily(self, tushare_pro):
+        """测试个股日线数据"""
+        df = tushare_pro.daily(
+            ts_code='000001.SZ',
+            start_date='20250401',
+            end_date='20250410'
+        )
+        assert isinstance(df, pd.DataFrame)
+        if df.empty:
+            print("⚠️ daily 返回为空，可能是没有股票日线权限")
+
+    def test_fund_daily(self, tushare_pro):
+        """测试场内基金日线行情"""
+        df = tushare_pro.fund_daily(
+            ts_code='510300.SH',
+            start_date='20250401',
+            end_date='20250410'
+        )
+        assert isinstance(df, pd.DataFrame)
+        if df.empty:
+            print("⚠️ fund_daily 返回为空，可能是没有基金日线权限")
