@@ -238,3 +238,4 @@ df = futures_provider.get_daily("RB2605.SHF", "2024-01-01", "2024-06-01")
 ## License
 
 MIT
+# test trigger
