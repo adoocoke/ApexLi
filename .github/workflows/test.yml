@@ -1,9 +1,14 @@
 name: Tests
+
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - 'refactor/**'      # 新增：支持重构分支
+      - 'feature/**'
   pull_request:
     branches: [ main ]
+
 jobs:
   test:
     name: Run tests and collect coverage
@@ -12,20 +17,21 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
-      - name: Checkout eaagent
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Checkout Private Playbook Repo
-        uses: actions/checkout@v4
-        with:
-          repository: adoocoke/trading-playbooks
-          token: ${{ secrets.PLAYBOOK_REPO_TOKEN }}
-          path: artifacts/playbooks
-          sparse-checkout: |
-            trading_playbook_v3.md
-          sparse-checkout-cone-mode: false
+      # 注意：目前已注释掉私有仓库 checkout，如需恢复请取消注释并配置对应 Token
+      # - name: Checkout Private Playbook Repo
+      #   uses: actions/checkout@v4
+      #   with:
+      #     repository: adoocoke/trading-playbooks
+      #     token: ${{ secrets.PLAYBOOK_REPO_TOKEN }}
+      #     path: artifacts/playbooks
+      #     sparse-checkout: |
+      #       trading_playbook_v3.md
+      #     sparse-checkout-cone-mode: false
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
