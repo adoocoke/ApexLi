@@ -80,6 +80,16 @@ DATA_PROVIDER=akshare_stock \
 python -m eaagent.a_plus_plus.graph
 ```
 
+### 启动 Web 界面（Gradio）
+
+在项目根目录下运行：
+
+```bash
+python -m web.app_graph
+```
+
+浏览器访问 http://127.0.0.1:7860 即可使用可视化分析界面，支持 Mock / Tushare / Akshare 数据源切换与 LLM Token 费用统计展示。
+
 ---
 
 ## 📍 当前状态
@@ -114,6 +124,7 @@ eaagent/
 │   └── factory.py
 ├── a_plus_plus/
 │   ├── graph.py
+│   ├── llm_tracker.py           # LLM 调用记录与费用统计
 │   └── nodes/                   # LangGraph 节点
 └── tests/
     ├── unit/
