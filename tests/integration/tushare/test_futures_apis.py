@@ -23,12 +23,11 @@ class TestFuturesAPIs:
 
     def test_fut_holding(self, tushare_pro):
         """测试每日成交持仓排名"""
-        df = tushare_pro.fut_holding(
-            ts_code='RB2505.SHF',
-            start_date='20250401',
-            end_date='20250410'
-        )
+        # 使用 trade_date 单日查询（最稳定）
+        df = tushare_pro.fut_holding(trade_date='20250410')
         assert isinstance(df, pd.DataFrame)
+        if df.empty:
+            print("⚠️ fut_holding 返回为空（该日期可能无数据）")
 
     def test_fut_wsr(self, tushare_pro):
         """测试仓单日报"""
