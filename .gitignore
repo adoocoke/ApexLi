@@ -58,3 +58,4 @@ reproduce_tushare_issue.py
 !README.md
 !todo/**/*.md
 .aider*
+.env
