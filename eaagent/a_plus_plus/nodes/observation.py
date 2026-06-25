@@ -69,7 +69,7 @@ def structured_observation(state: TAState) -> TAState:
       "data_type": "相关品种日线",
       "reason": "为什么需要这些品种的数据（例如：铁矿石、焦炭、焦煤与螺纹钢的共振关系）",
       "priority": "high / medium / low",
-      "symbols": ["I2609.SHF", "J2609.SHF", "JM2609.SHF"]
+      "symbols": ["I2609.DCE", "J2609.DCE", "JM2609.DCE"]
     }},
     {{
       "data_type": "技术指标",
