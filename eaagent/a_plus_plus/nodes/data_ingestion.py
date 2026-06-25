@@ -1,34 +1,50 @@
-from datetime import datetime
-import os
 from eaagent.a_plus_plus.types import TAState
+from eaagent.a_plus_plus.utils.console import color_print, Colors
 from eaagent.tools.tushare_futures import get_futures_daily_recent
-from eaagent.a_plus_plus.data_provider import get_market_data
+import os
+
 
 def data_ingestion(state: TAState) -> TAState:
     state["iteration"] += 1
-    print(f"\n[第 {state['iteration']} 轮] 数据获取阶段")
+    color_print(f"\n[第 {state['iteration']} 轮] 数据获取阶段", Colors.OKCYAN)
 
+    symbol = state["current_symbol"]
+
+    # 强制只使用日线数据（推荐做法）
     use_mock = os.getenv("USE_MOCK_OBSERVATION", "true").lower() == "true"
 
-    if not use_mock:
+    if use_mock:
+        color_print("  → 使用 Mock 数据", Colors.WARNING)
+        state["market_data"] = {
+            "data_source": "MOCK",
+            "daily_df": [],  # 这里可以放 mock 日线数据
+            "data_available": False
+        }
+    else:
+        color_print(f"  → 使用 Tushare 获取 {symbol} 最近5个月日线数据", Colors.OKBLUE)
         try:
-            # 使用 5 个月数据
-            df = get_futures_daily_recent(state["current_symbol"], months=5)
-            if df is not None and not df.empty:
-                state.setdefault("market_data", {})["daily_df"] = df.to_dict(orient="records")
-                state["market_data"]["data_source"] = "TUSHARE"
-                state["market_data"]["data_available"] = True
-                state["market_data"]["last_update"] = datetime.now().isoformat()
-                print(f"[Data] 使用 Tushare 获取 {state['current_symbol']} 最近5个月日线数据")
-                print(f"[Data] 成功获取 {len(df)} 条日线数据")
-                return state
+            df = get_futures_daily_recent(symbol, months=5)
+            if not df.empty:
+                color_print(f"  → 成功获取 {len(df)} 条日线数据", Colors.OKGREEN)
+                state["market_data"] = {
+                    "data_source": "TUSHARE",
+                    "daily_df": df.to_dict(orient="records"),
+                    "data_available": True,
+                    "last_update": df['trade_date'].iloc[-1] if len(df) > 0 else None
+                }
+            else:
+                color_print("  → Tushare 返回空数据", Colors.WARNING)
+                state["market_data"] = {
+                    "data_source": "TUSHARE",
+                    "daily_df": [],
+                    "data_available": False
+                }
         except Exception as e:
-            print(f"[Data] Tushare 获取失败: {e}")
+            color_print(f"  → 获取日线数据失败: {e}", Colors.FAIL)
+            state["market_data"] = {
+                "data_source": "TUSHARE",
+                "daily_df": [],
+                "data_available": False
+            }
 
-    # Mock 模式或降级
-    state["market_data"] = get_market_data(
-        state.get("data_source", "mock"),
-        state["current_symbol"],
-        state.get("timeframes", ["5m", "30m", "1d"])
-    )
     return state
