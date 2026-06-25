@@ -5,7 +5,6 @@ import pandas as pd
 from typing import List, Dict, Any
 
 def _prepare_daily_data(daily_data: List[Dict[str, Any]], max_rows: int = 60) -> str:
-    """准备发给 LLM 的日线数据，包含 oi_chg"""
     if not daily_data:
         return ""
     df = pd.DataFrame(daily_data)
@@ -28,7 +27,8 @@ def structured_observation(state: TAState) -> TAState:
             "force_comparison": "数据缺失",
             "trading_bias": "数据缺失",
             "main_contradiction": "数据缺失",
-            "playbook_references": []
+            "playbook_references": [],
+            "data_requests": []
         }
         state["observations"].append(obs_data)
         return state
@@ -39,10 +39,10 @@ def structured_observation(state: TAState) -> TAState:
 
 {data_str}
 
-请基于以上完整数据进行专业、系统化的技术分析，并**严格按照以下 JSON 格式**返回结果（不要有任何额外文字说明）：
+请基于以上数据进行专业、系统化的技术分析，并**严格按照以下 JSON 格式**返回结果：
 
 {{
-  "phase": "当前所处阶段（例如：下跌中继、筑底反弹、趋势反转、高位震荡等）",
+  "phase": "当前所处阶段",
   "trend": {{
     "mid_term": "中线趋势判断",
     "short_term": "短线趋势判断"
@@ -51,18 +51,33 @@ def structured_observation(state: TAState) -> TAState:
     "strong_resistance": ["价位1", "价位2"],
     "strong_support": ["价位1", "价位2"]
   }},
-  "volume_oi_linkage": "重点分析成交量、持仓量（oi）及持仓变化（oi_chg）三者之间的联动关系和含义（例如：放量下跌+OI增加=空头主动增仓）",
+  "volume_oi_linkage": "量价持仓三者联动分析",
   "key_events": [
     {{
       "date": "YYYY-MM-DD",
-      "event": "事件简述（如：放量大阴线 + OI大幅增加）",
-      "interpretation": "对该事件的解读和意义"
+      "event": "事件简述",
+      "interpretation": "解读"
     }}
   ],
-  "force_comparison": "当前多空力量对比总结（谁更占优、强度如何）",
-  "trading_bias": "当前最优交易倾向（做多 / 做空 / 观望）及核心理由",
-  "main_contradiction": "当前市场的主要矛盾、风险点或不确定性",
-  "playbook_references": ["具体引用的 Playbook 规则名称，例如：量仓核心逻辑（2.1）、示例2：关键压力位量仓观察"]
+  "force_comparison": "多空力量对比总结",
+  "trading_bias": "当前最优交易倾向及核心理由",
+  "main_contradiction": "当前主要矛盾与风险点",
+  "playbook_references": ["具体规则名称，如：量仓核心逻辑（2.1）"],
+
+  "data_requests": [
+    {{
+      "data_type": "相关品种日线",
+      "reason": "为什么需要这些品种的数据（例如：铁矿石、焦炭、焦煤与螺纹钢的共振关系）",
+      "priority": "high / medium / low",
+      "symbols": ["I2609.SHF", "J2609.SHF", "JM2609.SHF"]
+    }},
+    {{
+      "data_type": "技术指标",
+      "reason": "需要计算哪些技术指标辅助判断",
+      "priority": "high / medium / low",
+      "indicators": ["MA13", "MA5", "MA20", "MACD 等"]
+    }}
+  ]
 }}"""
 
     system_prompt = state["messages"][0]["content"] if state.get("messages") else ""
@@ -81,7 +96,8 @@ def structured_observation(state: TAState) -> TAState:
             "force_comparison": "解析失败",
             "trading_bias": "解析失败",
             "main_contradiction": "解析失败",
-            "playbook_references": []
+            "playbook_references": [],
+            "data_requests": []
         }
 
     state["observations"].append(obs_data)
