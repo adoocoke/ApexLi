@@ -15,7 +15,6 @@ class TestGetRelatedFuturesDaily:
         mock_get_recent.side_effect = [df1, df2]
 
         result = get_related_futures_daily(['I2609.DCE', 'J2609.DCE'], months=3)
-
         assert not result.empty
         assert len(result) == 6
 
@@ -23,7 +22,6 @@ class TestGetRelatedFuturesDaily:
 class TestGetFuturesDailyWithMa:
     @patch('tushare.pro_api')
     def test_get_futures_daily_with_ma_success(self, mock_pro_api):
-        """测试 get_futures_daily_with_ma 能正确调用 fut_daily 并计算均线"""
         mock_pro = MagicMock()
         mock_df = pd.DataFrame({
             'ts_code': ['RB2610.SHF'] * 10,
@@ -38,5 +36,4 @@ class TestGetFuturesDailyWithMa:
         assert not result.empty
         assert 'ma_5' in result.columns
         assert 'ma_13' in result.columns
-        # 验证调用的是 fut_daily 而不是 pro_bar
         mock_pro.fut_daily.assert_called_once()
