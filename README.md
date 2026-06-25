@@ -1,155 +1,162 @@
-<div align="center">
+# EA Agent
 
-# 🚀 ApexLi
+**EA Agent** 是一个基于 **LangGraph** 构建的**期货技术分析智能体**，专注于为期货交易者提供结构化、多轮自动优化的技术分析能力。
 
-**高级交易智能体框架**  
-支持股票与期货的多数据源统一抽象层
-
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://www.python.org/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Enabled-FF6B6B)](https://github.com/langchain-ai/langgraph)
-[![Status](https://img.shields.io/badge/Status-Refactoring-yellow)](https://github.com/adoocoke/ApexLi)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-</div>
+项目核心目标是：**让分析过程透明、可观测、可迭代**，而不是黑盒输出结果。
 
 ---
 
-## ✨ 项目简介
+## 核心特性
 
-**ApexLi** 是一个面向专业交易者的高级 AI Agent 框架，旨在通过统一的 **DataProvider 抽象层**，灵活接入多种数据源（Tushare、Akshare 等），并与 LangGraph 深度集成，实现股票与期货的多时间框架智能分析。
-
-当前项目正处于 **DataProvider 架构重构** 阶段，目标是打造一个可扩展、高可观测、工程化程度高的交易分析系统。
-
----
-
-## 🧩 核心特性
-
-- 🔄 **多数据源统一抽象**：通过 `DataProvider` + `Factory` 模式，支持 Tushare（期货/股票）和 Akshare（股票）无缝切换
-- 📊 **多时间框架分析**：支持日线 + 分钟线（5m/30m 等）结构化特征提取
-- 🤖 **LangGraph 深度集成**：基于状态图构建可观测、可持久化的多轮分析流程
-- 🧪 **工程化设计**：完整的单元测试 + Mock 支持，CI 自动化
-- 🛡️ **Playbook 策略注入**：支持加载交易规则 playbook，实现规则驱动的分析
+| 特性                  | 说明                                                                 |
+|-----------------------|----------------------------------------------------------------------|
+| **多轮自动分析**      | 默认最多进行 3 轮分析，遇到问题时自动继续优化                        |
+| **透明日志**          | 每轮都会清晰打印数据来源、参考的 Playbook 规则、质量检查结果         |
+| **Playbook 驱动**     | 自动加载 `trading_playbook_v3.md`，并在分析时展示匹配的规则          |
+| **Mock / 真实数据切换** | 通过环境变量 `USE_MOCK_OBSERVATION` 控制是否使用真实 Tushare 数据   |
+| **质量检查 (Sensors)** | 自动检测数据不足、置信度低等问题，并触发下一轮分析                   |
+| **持久化支持**        | 支持通过 `thread_id` 继续追问同一个品种                              |
+| **完整测试覆盖**      | 使用 pytest + Makefile 管理测试                                      |
 
 ---
 
-## 🏗️ 当前架构（重构中）
+## 快速开始
 
-| 模块                    | 状态       | 说明                              |
-|-------------------------|------------|-----------------------------------|
-| `DataProvider` (抽象基类) | ✅ 已完成   | 统一接口定义                      |
-| `TushareFuturesProvider`  | ✅ 已完成   | 期货数据支持                      |
-| `TushareStockProvider`    | ✅ 已完成   | Tushare 股票数据支持              |
-| `AkshareStockProvider`    | ✅ 已完成   | Akshare 股票数据支持              |
-| `Factory`                 | ✅ 已完成   | 数据源工厂方法                    |
-| `data_ingestion` 节点     | 🔄 重构中   | 已初步接入新 Provider             |
-| 多时间框架特征提取        | 🔄 重构中   | 日线 + 分钟线支持完善中           |
-
----
-
-## 🚀 快速开始
-
-### 环境准备
+### 安装
 
 ```bash
-git clone https://github.com/adoocoke/ApexLi.git
-cd ApexLi
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev,tushare,langgraph]"
+git clone https://github.com/adoocoke/eaagent.git
+cd eaagent
+pip install -e ".[dev,langgraph,tushare]"
 ```
 
-### 运行分析（Mock 模式，推荐先体验）
+### 基础运行（Mock 模式，默认推荐）
 
 ```bash
 python -m eaagent.a_plus_plus.graph
 ```
 
-### 使用真实数据（Tushare）
+### 使用真实 Tushare 数据
 
 ```bash
-USE_MOCK_OBSERVATION=false \
-TUSHARE_TOKEN=your_token \
-python -m eaagent.a_plus_plus.graph
+USE_MOCK_OBSERVATION=false python -m eaagent.a_plus_plus.graph
 ```
 
-### 使用 Akshare（股票）
-
-```bash
-USE_MOCK_OBSERVATION=false \
-DATA_PROVIDER=akshare_stock \
-python -m eaagent.a_plus_plus.graph
-```
-
-### 启动 Web 界面（Gradio）
-
-在项目根目录下运行：
-
-```bash
-python -m web.app_graph
-```
-
-浏览器访问 http://127.0.0.1:7860 即可使用可视化分析界面，支持 Mock / Tushare / Akshare 数据源切换与 LLM Token 费用统计展示。
+> 需要提前配置环境变量 `TUSHARE_TOKEN`
 
 ---
 
-## 📍 当前状态
-
-- ✅ DataProvider 抽象层已完成
-- ✅ Tushare / Akshare Provider 已实现
-- ✅ 与 LangGraph 初步集成
-- 🔄 多时间框架数据获取与特征提取正在完善
-- 🔄 可观测性（日志、颜色输出）持续优化
-
----
-
-## 🗺️ 后续规划
-
-- [ ] 完善多时间框架数据获取（尤其是 Tushare 分钟线）
-- [ ] 优化 Akshare 股票数据稳定性
-- [ ] 加强 Prompt 可观测性（完整打印 LLM 沟通过程）
-- [ ] 节点模块化拆分（提高可维护性）
-- [ ] 支持更多数据源（聚宽、米筐等）
-
----
-
-## 📁 关键目录结构
+## 项目结构
 
 ```
 eaagent/
-├── data_providers/              # 数据源抽象层（核心）
-│   ├── base.py
-│   ├── tushare_futures.py
-│   ├── tushare_stock.py
-│   ├── akshare_stock.py
-│   └── factory.py
-├── a_plus_plus/
-│   ├── graph.py
-│   ├── llm_tracker.py           # LLM 调用记录与费用统计
-│   └── nodes/                   # LangGraph 节点
-└── tests/
-    ├── unit/
-    └── integration/
+├── eaagent/
+│   ├── a_plus_plus/              # 核心增强模块（当前主力）
+│   │   ├── graph.py              # 多轮分析 + 透明日志 + Harness 核心
+│   │   ├── prompt_builder.py     # Playbook 加载
+│   │   └── tools.py
+│   ├── tools/                    # Tushare 等工具
+│   └── agent.py
+├── tests/                        # 完整测试
+├── Makefile                      # 便捷测试命令
+└── README.md
 ```
 
 ---
 
-## 🤝 贡献
+## 运行效果示例
 
-欢迎提交 Issue 和 Pull Request！
+```text
+======================================================================
+[初始化] 开始分析 RB2605
+  - 数据来源: MOCK
+  - Playbook: ✅ 成功加载（共 12 条关键规则）
+  - 最大分析轮次: 3
+======================================================================
 
-当前重点方向：
-- DataProvider 稳定性与扩展性
-- 多时间框架分析能力
-- Agent 可观测性与调试体验
+[第 1 轮] 数据获取阶段
+  → 使用 Mock 数据
+
+[第 1 轮] 结构化市场观察
+  → 参考 Playbook 规则: ['量仓变化优先', '多时间框架一致性']
+
+[第 1 轮] 生成交易信号
+  → 参考 Playbook 规则: ['严格止损纪律']
+
+[第 1 轮] 质量检查 (Sensors)
+  → 发现问题，进入第 2 轮...
+
+[第 2 轮] 数据获取阶段
+...
+
+======================================================================
+【RB2605 技术分析报告】（共 2 轮）
+======================================================================
+数据来源: MOCK
+Playbook 使用: 是
+实际分析轮次: 2
+最终综合置信度: 81%
+最终交易信号:
+  • 多头 | 入场 4125 | 止损 4080
+✅ 分析完成，未发现明显问题
+======================================================================
+```
 
 ---
 
-**注意**：本项目仍处于快速迭代阶段，API 可能会有调整。
+## 主要模块说明
+
+### `eaagent/a_plus_plus/graph.py`（核心）
+
+当前项目的**核心引擎**，实现了以下能力：
+
+- 多轮自动分析循环（问题驱动）
+- 清晰的每轮日志输出
+- Playbook 规则匹配展示
+- Tushare / Mock 数据源切换
+- Sensors 质量检查机制
+
+### Playbook 集成
+
+项目会自动尝试加载 `trading_playbook_v3.md`，并在分析过程中展示**参考了哪些规则**。
+
+支持的加载路径（按优先级）：
+- `artifacts/trading_playbook_v3.md`
+- `artifacts/playbooks/trading_playbook_v3.md`
+- 项目根目录 `trading_playbook_v3.md`
 
 ---
 
-<div align="center">
+## 测试
 
-**Made with ❤️ by adoocoke**
+```bash
+# 运行全量测试
+make test
 
-</div>
+# 运行带覆盖率的测试
+make test-cov
+```
+
+---
+
+## 环境变量
+
+| 变量                        | 默认值   | 说明                                      |
+|-----------------------------|----------|-------------------------------------------|
+| `USE_MOCK_OBSERVATION`      | `true`   | 是否使用 Mock 数据，设为 `false` 时尝试调用真实 Tushare |
+| `TUSHARE_TOKEN`             | -        | Tushare 接口 Token                        |
+
+---
+
+## 开发建议
+
+- 日常开发推荐开启 Mock 模式（`USE_MOCK_OBSERVATION=true`）
+- 修改 `graph.py` 后请运行 `make test`
+- 新增功能建议同步更新测试和日志输出
+- 提交前建议执行 `make test`
+
+---
+
+## License
+
+MIT
