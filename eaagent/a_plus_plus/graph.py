@@ -25,6 +25,8 @@ from .utils.console import color_print, Colors
 from .nodes import persist, data_ingestion
 from .nodes.observation import structured_observation
 from .nodes.data_gathering import data_gathering
+from .nodes.quality_sensor import quality_sensor
+from .nodes.llm_critique import llm_critique
 from eaagent.data_providers.factory import get_data_provider
 
 
@@ -190,16 +192,34 @@ def llm_critique(state: TAState) -> TAState:
 
 
 def should_continue_after_critique(state: TAState) -> Literal["continue", "finalize"]:
-    if state["iteration"] >= state["max_rounds"]:
+    if state.get("iteration", 0) >= state.get("max_rounds", 5):
         return "finalize"
 
-    raw = state.get("critique_result", {}).get("raw_response", "")
-    if "false" in raw.lower():
-        return "finalize"
+    critique = state.get("critique_result", {})
+    raw_response = critique.get("raw_response", "")
 
+    # 尝试解析 LLM 返回的 JSON
+    try:
+        import json
+        import re as _re
+        json_match = _re.search(r"\{.*\}", raw_response, _re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group(0))
+            should_continue = result.get("should_continue", True)
+            risk_change = result.get("risk_change", "").lower()
+
+            if should_continue is False:
+                return "finalize"
+            if risk_change in ["上升", "显著上升", "增加"]:
+                return "continue"
+            return "continue" if should_continue else "finalize"
+    except Exception:
+        pass
+
+    # 兜底逻辑
+    if "false" in raw_response.lower():
+        return "finalize"
     return "continue"
-
-
 def final_output(state: TAState) -> TAState:
     color_print("\n" + "="*70, Colors.BOLD)
     color_print(f"【{state['current_symbol']} 技术分析报告】（共 {state['analysis_rounds']} 轮）", Colors.BOLD)
