@@ -18,7 +18,6 @@ def test_tushare_token_exists():
     assert len(token) > 10, "TUSHARE_TOKEN 看起来太短，请检查是否正确"
 
 
-@pytest.mark.skip(reason="Tushare 免费版频率限制严格（1次/小时），默认跳过真实接口测试")
 def test_tushare_connection():
     """ 真实调用 Tushare API 测试（需要手动取消 skip 才能运行） """
     token = os.getenv("TUSHARE_TOKEN")
