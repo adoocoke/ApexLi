@@ -24,7 +24,6 @@ from .utils.console import color_print, Colors
 # ==================== 节点模块 ====================
 from .nodes import persist, data_ingestion
 from .nodes.observation import structured_observation
-from .nodes.data_gathering import data_gathering
 from eaagent.data_providers.factory import get_data_provider
 
 
@@ -231,7 +230,6 @@ def build_graph():
     workflow.add_node("initialize", initialize_state)
     workflow.add_node("data_ingestion", data_ingestion)
     workflow.add_node("observation", structured_observation)
-    workflow.add_node("data_gathering", data_gathering)
     workflow.add_node("signal_gen", signal_generation)
     workflow.add_node("quality_sensor", quality_sensor)
     workflow.add_node("llm_critique", llm_critique)
@@ -241,8 +239,7 @@ def build_graph():
     workflow.set_entry_point("initialize")
     workflow.add_edge("initialize", "data_ingestion")
     workflow.add_edge("data_ingestion", "observation")
-    workflow.add_edge("observation", "data_gathering")
-    workflow.add_edge("data_gathering", "signal_gen")
+    workflow.add_edge("observation", "signal_gen")
     workflow.add_edge("signal_gen", "quality_sensor")
     workflow.add_edge("quality_sensor", "llm_critique")
 
