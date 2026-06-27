@@ -76,7 +76,7 @@ def initialize_state(state: TAState) -> TAState:
             IdOnlyStrategy
         )
 
-        playbook_id = get_playbook_id(PLAYBOOK_CONTENT)
+        playbook_id = get_playbook_id()
         state["playbook_id"] = playbook_id
 
         strategy_mode = os.getenv("PLAYBOOK_STRATEGY", "full").lower()

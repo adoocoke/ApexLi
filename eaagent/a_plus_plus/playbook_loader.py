@@ -1,75 +1,40 @@
 import os
 import re
-import hashlib
+from pathlib import Path
+from typing import List, Tuple
 
-PLAYBOOK_CONTENT = ""
-PLAYBOOK_LOADED = False
-PLAYBOOK_RULES = []
-
-
-def get_playbook_id(content: str) -> str:
-    """根据 Playbook 内容生成稳定 ID"""
-    return hashlib.md5(content.encode('utf-8')).hexdigest()[:12]
-
-
-def load_playbook() -> bool:
-    global PLAYBOOK_CONTENT, PLAYBOOK_LOADED, PLAYBOOK_RULES
-
-    possible_paths = [
+def load_playbook() -> Tuple[str, List[str]]:
+    paths = [
         "artifacts/trading_playbook_v3.md",
         "artifacts/playbooks/trading_playbook_v3.md",
-        "trading_playbook_v3.md",
+        "trading_playbook_v3.md"
     ]
-
-    for path in possible_paths:
-        if os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    PLAYBOOK_CONTENT = f.read()
-
-                PLAYBOOK_RULES = re.findall(r'###\s*(.+?)(?=\n|$)', PLAYBOOK_CONTENT)
-                if not PLAYBOOK_RULES:
-                    PLAYBOOK_RULES = ["量仓变化优先", "多时间框架一致性", "严格止损纪律"]
-
-                PLAYBOOK_LOADED = True
-                print(f"[Playbook] ✅ 成功加载: {path}（共 {len(PLAYBOOK_RULES)} 条关键规则）")
-                return True
-            except Exception as e:
-                print(f"[Playbook] 读取失败: {e}")
-                return False
-
-    print("[Playbook] ❌ 未找到 trading_playbook_v3.md")
-    return False
+    for p in paths:
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                content = f.read()
+            print(f"[Playbook] ✅ 成功加载: {p}")
+            rules = re.findall(r'###\s*(.+?)(?=\n|$)', content)
+            return content, [r.strip() for r in rules if r.strip()]
+    print("[Playbook] ⚠️ 未找到文件，使用默认规则")
+    return "默认规则", ["量仓核心逻辑", "关键压力位量仓观察", "波段操作与减仓信号"]
 
 
-def build_playbook_prompt() -> str:
-    if not PLAYBOOK_LOADED or not PLAYBOOK_CONTENT:
-        return "你是一个专业的期货技术分析师，请严格遵守交易纪律进行分析。"
-
-    core_content = PLAYBOOK_CONTENT[:3500]
-    return f"""你是一个专业的期货技术分析师，请严格遵守以下 Playbook 规则进行分析：
-
-{core_content}
-
-分析要求：
-- 必须关注量仓变化
-- 多时间框架信号需保持一致性
-- 必须设置合理止损
-- 信息不足时主动放弃判断
-"""
+def build_playbook_prompt(max_length: int = 3800) -> str:
+    content, _ = load_playbook()
+    if len(content) > max_length:
+        content = content[:max_length] + "\n...(截断)"
+    return content
 
 
-def get_relevant_playbook_rules(context: str = "") -> list:
-    if not PLAYBOOK_LOADED:
-        return []
+def get_relevant_playbook_rules(keywords: str = "") -> List[str]:
+    _, rules = load_playbook()
+    return rules[:5]
 
-    relevant = []
-    context_lower = context.lower()
 
-    for rule in PLAYBOOK_RULES:
-        rule_lower = rule.lower()
-        if any(kw in context_lower for kw in ["量", "仓", "止损", "时间框架", "支撑", "阻力"]):
-            if any(kw in rule_lower for kw in ["量", "仓", "止损", "时间", "框架"]):
-                relevant.append(rule)
+def get_playbook_id(content=None) -> str:   # 增加兼容参数
+    return "v3.0-20260625"
 
-    return relevant[:3] if relevant else PLAYBOOK_RULES[:3]
+
+# 兼容旧代码（graph.py 仍在调用 PLAYBOOK_CONTENT）
+PLAYBOOK_CONTENT = load_playbook()[0]
