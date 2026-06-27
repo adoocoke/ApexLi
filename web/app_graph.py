@@ -17,9 +17,9 @@ def run_analysis(symbol: str, data_source: str, progress=gr.Progress()):
     os.environ["USE_MOCK_OBSERVATION"] = "false" if data_source == "Tushare" else "true"
     os.environ["DATA_PROVIDER"] = "tushare_futures" if data_source == "Tushare" else "mock"
 
-    console = ["🚀 **开始分析**", f"合约: {symbol} | 数据源: {data_source}"]
+    console = ["🚀 开始分析", f"合约: {symbol} | 数据源: {data_source}"]
 
-    progress(0.3, desc="运行中...")
+    progress(0.4, desc="分析运行中...")
     app = build_graph()
     state = create_initial_state(symbol)
     final_state = app.invoke(state, {"configurable": {"thread_id": state["thread_id"]}})
@@ -29,22 +29,24 @@ def run_analysis(symbol: str, data_source: str, progress=gr.Progress()):
     signal = final_state.get("signals", [{}])[-1]
     extra = final_state.get("extra_data", {})
 
-    # 主 K线 + 相关品种 K线（加强 fallback）
-    main_chart = related_chart = None
+    # 主 K线
+    main_chart = None
+    related_chart1 = None
+    related_chart2 = None
+
     try:
         df_main = pd.DataFrame(extra.get("technical_indicators", []))
         if df_main.empty:
             df_main = get_futures_daily_with_ma(symbol, months=3)
         main_chart = create_candlestick_chart(df_main, symbol)
 
-        # 相关品种 K线（取第一个相关品种）
-        related_list = extra.get("related_futures", [])
-        if related_list:
-            df_related = pd.DataFrame(related_list[:60])
-            related_chart = create_candlestick_chart(df_related, "I2609.DCE (相关)")
-        else:
-            df_related = get_futures_daily_with_ma("I2609.DCE", months=2)
-            related_chart = create_candlestick_chart(df_related, "I2609.DCE (相关)")
+        # 相关品种 K线 - 强制显示两个
+        df_i = get_futures_daily_with_ma("I2609.DCE", months=2)
+        related_chart1 = create_candlestick_chart(df_i, "I2609.DCE (铁矿)")
+
+        df_j = get_futures_daily_with_ma("J2609.DCE", months=2)
+        related_chart2 = create_candlestick_chart(df_j, "J2609.DCE (焦炭)")
+
     except Exception as e:
         print(f"[Chart Error] {e}")
 
@@ -54,7 +56,7 @@ def run_analysis(symbol: str, data_source: str, progress=gr.Progress()):
 **止损**：{signal.get('stop_loss', 'N/A')}  
 **理由**：{signal.get('reason', '')[:300]}..."""
 
-    return "\n".join(console), md, main_chart, related_chart
+    return "\n".join(console), md, main_chart, related_chart1, related_chart2
 
 
 with gr.Blocks(title="ApexLi • 实时分析终端") as demo:
@@ -74,13 +76,15 @@ with gr.Blocks(title="ApexLi • 实时分析终端") as demo:
             with gr.Tabs():
                 with gr.Tab("当前合约 K线"):
                     main_plot = gr.Plot()
-                with gr.Tab("相关品种 K线"):
-                    related_plot = gr.Plot()
+                with gr.Tab("铁矿石 K线"):
+                    related_plot1 = gr.Plot()
+                with gr.Tab("焦炭 K线"):
+                    related_plot2 = gr.Plot()
 
     btn.click(
         fn=run_analysis,
         inputs=[symbol, source],
-        outputs=[console, result, main_plot, related_plot]
+        outputs=[console, result, main_plot, related_plot1, related_plot2]
     )
 
     gr.Examples([["RB2610.SHF", "Tushare"]], [symbol, source])
