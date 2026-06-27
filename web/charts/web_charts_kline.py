@@ -2,32 +2,34 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from typing import Optional
-import sys
-from pathlib import Path
-
-project_root = Path(__file__).parent.parent.resolve()
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 
 def create_candlestick_chart(df: pd.DataFrame, symbol: str) -> Optional[go.Figure]:
     """
-    健壮版 K线图绘制
+    健壮的 K线图绘制函数
+    自动处理常见的列名差异
     """
     if df is None or df.empty:
-        print("[Kline] DataFrame 为空，无法绘图")
+        print("[Kline] 输入数据为空")
         return None
 
-    # 兼容不同列名
     df = df.copy()
-    if 'trade_date' not in df.columns and 'date' in df.columns:
-        df['trade_date'] = df['date']
-    if 'vol' not in df.columns and 'volume' in df.columns:
-        df['vol'] = df['volume']
 
-    required_cols = ['trade_date', 'open', 'high', 'low', 'close']
-    missing = [c for c in required_cols if c not in df.columns]
+    # 列名兼容处理
+    col_map = {
+        'date': 'trade_date',
+        'datetime': 'trade_date',
+        'volume': 'vol',
+        'amount': 'amount',
+    }
+    for old_col, new_col in col_map.items():
+        if old_col in df.columns and new_col not in df.columns:
+            df[new_col] = df[old_col]
+
+    # 必须存在的列
+    required = ['trade_date', 'open', 'high', 'low', 'close']
+    missing = [c for c in required if c not in df.columns]
     if missing:
-        print(f"[Kline] 缺少必要列: {missing}")
+        print(f"[Kline] 缺少必要列: {missing}，现有列: {list(df.columns)}")
         return None
 
     try:
@@ -83,5 +85,7 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str) -> Optional[go.Figur
         return fig
 
     except Exception as e:
-        print(f"[Kline] 绘图出错: {e}")
+        print(f"[Kline] 绘图异常: {e}")
+        import traceback
+        traceback.print_exc()
         return None

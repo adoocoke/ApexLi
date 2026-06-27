@@ -30,7 +30,7 @@ from .nodes.llm_critique import llm_critique
 from eaagent.data_providers.factory import get_data_provider
 
 
-def create_initial_state(symbol: str = "RB2605.SHF") -> TAState:
+def create_initial_state(symbol: str = "RB2610.SHF") -> TAState:
     now = datetime.now()
     use_mock = os.getenv("USE_MOCK_OBSERVATION", "true").lower() == "true"
     return TAState(
@@ -283,6 +283,6 @@ def build_graph():
 if __name__ == "__main__":
     color_print("=== EA Agent - Harness 重构版 ===", Colors.BOLD)
     app = build_graph()
-    state = create_initial_state("RB2605.SHF")
+    state = create_initial_state("RB2610.SHF")
     config = {"configurable": {"thread_id": state["thread_id"]}}
     app.invoke(state, config)
