@@ -1,5 +1,6 @@
 from eaagent.a_plus_plus.types import TAState
 from eaagent.a_plus_plus.utils.console import color_print, Colors
+from eaagent.playbooks import manager
 from eaagent.prompts.fortress import build_fortified_observation_prompt
 import json
 import pandas as pd
@@ -20,39 +21,64 @@ def structured_observation(state: TAState) -> TAState:
     daily_data = state.get("market_data", {}).get("daily_df", [])
     data_str = _prepare_daily_data(daily_data)
 
-    # 融合版：Fortress铁律 + 完整详细Prompt + 强制要求
-    base_prompt = build_fortified_observation_prompt(state.get("current_playbook", "v3"))
+    current_playbook = state.get("current_playbook", "v3")
 
-    prompt = f"""{base_prompt}
+    # 获取 Fortress 铁律
+    fortress_prompt = build_fortified_observation_prompt(current_playbook)
 
-以下是 {state['current_symbol']} 的完整日线数据（包含 oi 和 oi_chg）：
+    # 【正确获取 Playbook 内容】
+    playbook_content, _ = manager.load_playbook(current_playbook)
+
+    prompt = f"""{fortress_prompt}
+
+【当前 Playbook 完整内容】
+{playbook_content}
+
+以下是 {state['current_symbol']} 的日线数据（最近 {len(daily_data)} 根K线）：
 
 {data_str}
 
-**强制要求（必须严格遵守）**：
-1. 必须明确写出参考了 Playbook 的哪一条或哪几条具体规则（写完整标题）
-2. 必须说明当前市场情况如何匹配该规则
-3. data_requests 必须是字典列表，不能是字符串
+【任务要求 - 必须严格遵守】
 
-请严格按以下JSON格式返回（不要有任何额外文字）：
+1. **必须先判断**当前行情是否真的匹配 Playbook 中的规则，再决定是否引用。
+2. `playbook_references` 字段的每一项必须同时包含：
+   - 规则完整标题
+   - 当前市场情况如何匹配这条规则的具体解释（至少一句话）
+
+3. 输出必须严格遵守以下 JSON 格式（不要有多余文字）：
 
 {{
-  "phase": "当前所处阶段",
-  "trend": {{"mid_term": "...", "short_term": "..."}},
+  "phase": "当前所处阶段描述",
+  "trend": {{"mid_term": "上升/下降/震荡", "short_term": "上升/下降/震荡"}},
   "key_levels": {{"strong_resistance": [...], "strong_support": [...]}},
-  "volume_oi_linkage": "...",
-  "key_events": [...],
-  "force_comparison": "...",
-  "trading_bias": "...",
-  "main_contradiction": "...",
-  "playbook_references": ["规则标题1（匹配理由）", "规则标题2（匹配理由）"],
+  "volume_oi_linkage": "量仓关系分析",
+  "key_events": ["关键事件1", "关键事件2"],
+  "force_comparison": "多空力量对比",
+  "trading_bias": "偏多/偏空/观望",
+  "main_contradiction": "当前最主要矛盾",
+  "playbook_references": [
+    "规则标题1：当前市场情况如何匹配这条规则的解释",
+    "规则标题2：当前市场情况如何匹配这条规则的解释"
+  ],
   "data_requests": [
-    {{"data_type": "相关品种日线", "reason": "...", "priority": "high", "symbols": ["I2609.DCE", "J2609.DCE"]}},
-    {{"data_type": "技术指标", "reason": "...", "priority": "high", "indicators": ["MA5", "MA13", "MA20"]}}
+    {{"data_type": "...", "reason": "...", "priority": "high/low", "symbols": [...]}}
   ]
-}}"""
+}}
 
-    system_prompt = state.get("messages", [{}])[0].get("content", "")
+【Few-shot 示例】
+
+示例1：
+当价格持续回落 + 持仓稳步增加时，合理的引用写法：
+"2.1 量仓分析核心逻辑：价格回落同时持仓稳步增加，符合持仓增加提供趋势燃料的规则，当前空头力量占优。"
+
+示例2：
+当价格新高但MACD柱子明显缩短时，合理的引用写法：
+"3.1 背驰判断标准：价格虽然创新高，但MACD柱子面积小于前一段，出现趋势背驰，符合一卖信号特征。"
+
+请严格按照以上要求输出 JSON。
+"""
+
+    system_prompt = state.get("messages", [{}])[0].get("content", "") if state.get("messages") else ""
 
     from eaagent.a_plus_plus.utils.llm import call_llm
     response = call_llm(prompt, system_prompt)
@@ -64,5 +90,5 @@ def structured_observation(state: TAState) -> TAState:
 
     state["observations"].append(obs_data)
     color_print(f" → 本轮引用 Playbook: {obs_data.get('playbook_references', [])}", Colors.OKBLUE)
-    
+
     return state
