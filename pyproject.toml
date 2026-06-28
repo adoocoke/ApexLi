@@ -16,6 +16,7 @@ license = { text = "MIT" }
 dependencies = [
     "openai>=1.55.0",
     "python-dotenv>=1.0.0",
+    "plotly>=5.0.0",
 ]
 
 [project.optional-dependencies]
