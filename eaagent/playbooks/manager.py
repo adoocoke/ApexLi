@@ -48,10 +48,14 @@ class PlaybookManager:
         return "# 默认空规则\n", name
 
     def get_rules(self, name: str = "v3", max_rules: int = 15) -> List[str]:
-        """提取 Playbook 中的规则标题"""
+        """提取 Playbook 中的规则标题（支持 1.、1.1、### 等格式）"""
         content, _ = self.load(name)
-        rules = re.findall(r'(?:^|\n)(?:###|\d+\.\d+|\d+\.)\s*(.+?)(?=\n|$)', content)
-        rules = [r.strip() for r in rules if r.strip() and len(r) > 5]
+        # 使用多行模式，更可靠地匹配标题
+        rules = re.findall(
+            r'(?m)^(?:###\s*|\d+\.\d+\s*|\d+\.\s*)(.+?)(?=\n|$)',
+            content
+        )
+        rules = [r.strip() for r in rules if r.strip() and len(r) > 3]
         return rules[:max_rules]
 
     def build_prompt(self, name: str = "v3", max_chars: int = 4000) -> str:

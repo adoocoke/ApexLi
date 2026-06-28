@@ -70,12 +70,11 @@ def initialize_state(state: TAState) -> TAState:
     pb = state.get("current_playbook", "v3")
     color_print(f"  - Playbook: {pb} ← 来自Web选择", Colors.OKGREEN)
 
+    # 只加载一次
     content, name = manager.load(pb)
     state["current_playbook"] = name
-
-    content, name = manager.load(state.get("current_playbook", "v3"))
     state["playbook_used"] = True
-    state["playbook_id"] = manager.get_id()
+    state["playbook_id"] = manager.get_id(name)
 
     from eaagent.a_plus_plus.strategies.playbook_strategies import FullPlaybookStrategy
     strategy = FullPlaybookStrategy()
