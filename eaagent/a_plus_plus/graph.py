@@ -21,7 +21,6 @@ from .nodes.data_gathering import data_gathering
 from .nodes.llm_critique import llm_critique
 from .nodes.observation import structured_observation
 from .nodes.quality_sensor import quality_sensor
-from .playbook_loader import load_playbook, get_relevant_playbook_rules, get_playbook_id
 from .types import TAState
 from .utils.console import color_print, Colors
 # ==================== 工具模块 ====================
@@ -74,8 +73,9 @@ def initialize_state(state: TAState) -> TAState:
     content, name = manager.load(pb)
     state["current_playbook"] = name
 
+    content, name = manager.load(state.get("current_playbook", "v3"))
     state["playbook_used"] = True
-    state["playbook_id"] = get_playbook_id()
+    state["playbook_id"] = manager.get_id()
 
     from eaagent.a_plus_plus.strategies.playbook_strategies import FullPlaybookStrategy
     strategy = FullPlaybookStrategy()
@@ -94,8 +94,7 @@ def signal_generation(state: TAState) -> TAState:
 
     obs = state["observations"][-1] if state["observations"] else {}
     cur_playbook = state.get("current_playbook", "v3")
-    relevant_rules = get_relevant_playbook_rules(cur_playbook)
-
+    relevant_rules = manager.get_rules(cur_playbook)
     prompt = f"""基于以下观察内容，请给出**结构化交易建议**，并严格按照 JSON 格式返回：
 
 {obs}
