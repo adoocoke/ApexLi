@@ -73,14 +73,16 @@ journey
 
 ### 验收标准
 - [ ] `structured_observation` 返回符合指定 JSON Schema 的结构化数据
-- [ ] 包含 `trend`、`key_levels`、`volume_analysis`、`conclusion`、`risk_note`、`playbook_references` 等字段
-- [ ] JSON 解析失败时有拡底处理机制
+- [ ] 包含 `trend`、`key_levels`、`volume_oi_linkage`、`main_contradiction`、`playbook_references` 等字段
+- [ ] `playbook_references` 应包含规则标题 + 匹配解释
+- [ ] JSON 解析失败时有兜底处理机制
 - [ ] 结构化结果被正确存入 `state["observations"]`
 - [ ] 最终报告中以清晰格式展示结构化观察结果
 
 **Epic**: Structured LLM Communication  
 **Priority**: P0  
-**Size**: M
+**Size**: M  
+**Status**: In Progress (72%)
 ```
 
 #### EA-002
@@ -95,13 +97,14 @@ journey
 
 ### 验收标准
 - [ ] 输出包含 `direction`、`entry_zone`、`stop_loss`、`target`、`reason` 的 JSON
-- [ ] `reason` 字段需引用 Playbook 相关逻辑
-- [ ] JSON 解析失败时有拡底结构
+- [ ] `reason` 字段必须清晰引用 Playbook 规则，并说明匹配逻辑
+- [ ] JSON 解析失败时有兜底结构
 - [ ] 最终报告中以结构化方式展示交易建议
 
 **Epic**: Structured LLM Communication  
 **Priority**: P0  
-**Size**: M
+**Size**: M  
+**Status**: In Progress (65%)
 ```
 
 #### EA-003
@@ -138,6 +141,7 @@ journey
 
 **Priority**: P0  
 **Size**: L
+**Status**: In Progress (58%)  
 ```
 
 #### EA-005
@@ -152,6 +156,7 @@ journey
 
 **Priority**: P1  
 **Size**: M
+**Status**: In Progress (40%)  
 ```
 
 ### Epic 3: Playbook Strategy 灵活控制 (P1)
@@ -234,10 +239,10 @@ journey
 
 ## 4. 优先级与 Roadmap
 
-| Priority | Epic                              | 建议 Release |
-|----------|-----------------------------------|------------------|
-| P0       | Structured LLM Communication      | MVP              |
-| P0       | Multi-round Analysis Loop         | MVP              |
-| P1       | Playbook Strategy                 | R1               |
-| P1       | Observability                     | R2               |
-| P2       | Engineering                       | R3               |
+| Priority | Epic | 建议 Release | 当前重点 |
+|----------|-----------------------------------|------------------|----------|
+| P0 | Structured LLM Communication | MVP | **正在重点推进** |
+| P0 | Multi-round Analysis Loop | MVP | 部分推进 |
+| P1 | Playbook Strategy | R1 | 暂缓 |
+| P1 | Observability | R2 | 暂缓 |
+| P2 | Engineering | R3 | 暂缓 |
