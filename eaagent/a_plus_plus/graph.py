@@ -93,7 +93,8 @@ def signal_generation(state: TAState) -> TAState:
     color_print(f"[第 {state['iteration']} 轮] 生成交易信号（Grok 分析）", Colors.OKGREEN)
 
     obs = state["observations"][-1] if state["observations"] else {}
-    relevant_rules = get_relevant_playbook_rules("量仓 止损")
+    cur_playbook = state.get("current_playbook", "v3")
+    relevant_rules = get_relevant_playbook_rules(cur_playbook)
 
     prompt = f"""基于以下观察内容，请给出**结构化交易建议**，并严格按照 JSON 格式返回：
 

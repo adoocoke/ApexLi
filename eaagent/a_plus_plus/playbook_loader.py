@@ -25,7 +25,7 @@ def build_playbook_prompt():
     return content[:4000]
 
 def get_relevant_playbook_rules(keywords=""):
-    _, rules = load_playbook()
+    _, rules = load_playbook(keywords)
     return rules
 
 def get_playbook_id(content=None):

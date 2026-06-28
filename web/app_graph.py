@@ -38,8 +38,7 @@ def run_analysis(symbol, data_source, playbook_name):
     df_j = get_futures_daily_with_ma("J2609.DCE", months=2)
     i_chart = create_candlestick_chart(df_i, "I2609.DCE (铁矿石)")
     j_chart = create_candlestick_chart(df_j, "J2609.DCE (焦炭)")
-
-    result_text = f"✅ 当前使用 Playbook: {name} | 方向: {signal.get('direction', '观望')}"
+    result_text = f"✅ 当前使用 Playbook: {name} | 方向: {signal.get('direction', '未返回方向')}"
 
     return result_text, main_chart, i_chart, j_chart
 
