@@ -11,7 +11,10 @@ if str(project_root) not in sys.path:
 
 def create_candlestick_chart(df: pd.DataFrame, symbol: str) -> Optional[go.Figure]:
     """
-    健壮版 K线图绘制
+    健壮版 K线图绘制（深色专业风格）
+    - 上涨 K线 = 红色
+    - 下跌 K线 = 蓝色
+    - 深色背景主题
     """
     if df is None or df.empty:
         print("[Kline] DataFrame 为空，无法绘图")
@@ -40,14 +43,20 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str) -> Optional[go.Figur
             row_heights=[0.7, 0.3]
         )
 
-        # K线
+        # ==================== K线（核心修改） ====================
         fig.add_trace(go.Candlestick(
             x=df['trade_date'],
             open=df['open'],
             high=df['high'],
             low=df['low'],
             close=df['close'],
-            name="K线"
+            name="K线",
+            # 上涨 = 红色
+            increasing_line_color='red',
+            increasing_fillcolor='rgba(255, 50, 50, 0.85)',
+            # 下跌 = 蓝色
+            decreasing_line_color='blue',
+            decreasing_fillcolor='rgba(50, 120, 255, 0.85)',
         ), row=1, col=1)
 
         # 均线
@@ -60,21 +69,46 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str) -> Optional[go.Figur
                     line=dict(width=1.5)
                 ), row=1, col=1)
 
-        # 成交量
+        # 成交量（适配深色背景）
         if 'vol' in df.columns:
             fig.add_trace(go.Bar(
                 x=df['trade_date'],
                 y=df['vol'],
                 name="成交量",
-                marker_color='rgba(100,100,100,0.5)'
+                marker_color='rgba(180, 180, 180, 0.65)'
             ), row=2, col=1)
 
+        # ==================== 深色主题 ====================
         fig.update_layout(
-            title=f"{symbol} K线图 + 均线",
+            title=dict(
+                text=f"{symbol} K线图 + 均线",
+                font=dict(color='#e0e0e0', size=16)
+            ),
             xaxis_rangeslider_visible=False,
             height=650,
             showlegend=True,
-            margin=dict(l=40, r=40, t=60, b=40)
+            margin=dict(l=40, r=40, t=60, b=40),
+            # 深色背景
+            plot_bgcolor='#1a1a2e',
+            paper_bgcolor='#0f0f1a',
+            font=dict(color='#d0d0d0'),
+            legend=dict(
+                font=dict(color='#d0d0d0'),
+                bgcolor='rgba(30, 30, 46, 0.85)'
+            )
+        )
+
+        # 坐标轴样式（适配深色背景）
+        fig.update_xaxes(
+            gridcolor='#2a2a4a',
+            linecolor='#3a3a5a',
+            tickfont=dict(color='#b0b0b0')
+        )
+        fig.update_yaxes(
+            gridcolor='#2a2a4a',
+            linecolor='#3a3a5a',
+            tickfont=dict(color='#b0b0b0'),
+            title_font=dict(color='#b0b0b0')
         )
 
         fig.update_yaxes(title_text="价格", row=1, col=1)
