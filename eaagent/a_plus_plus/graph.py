@@ -94,19 +94,50 @@ def signal_generation(state: TAState) -> TAState:
     obs = state["observations"][-1] if state["observations"] else {}
     cur_playbook = state.get("current_playbook", "v3")
     relevant_rules = manager.get_rules(cur_playbook)
-    prompt = f"""基于以下观察内容，请给出**结构化交易建议**，并严格按照 JSON 格式返回：
 
-{obs}
-参考 Playbook 规则: {relevant_rules}
+    prompt = f"""你是一个严格遵守 Playbook 的期货交易决策者。
 
-请返回以下 JSON 格式（不要有额外文字）：
-{{
-  "direction": "多头 / 空头 / 观望",
-  "entry_zone": "入场区间描述",
-  "stop_loss": "止损描述",
-  "target": "目标 / 减仓区间",
-  "reason": "详细理由（必须引用 Playbook 相关逻辑）"
-}}"""
+    【当前 Playbook】
+    {manager.build_prompt(cur_playbook)}
+
+    基于以下结构化市场观察，请给出**结构化交易建议**：
+
+    {obs}
+
+    【输出要求 - 必须严格遵守】
+
+    1. `reason` 字段必须同时包含以下两部分：
+       - 明确引用了 Playbook 的哪一条或哪几条规则（写出完整标题）
+       - 当前行情**为什么匹配**这条规则的具体逻辑解释
+
+    2. 如果当前行情不符合任何明确交易定式，请输出“观望”，并在 reason 中说明判断依据。
+
+    3. 输出必须严格按照以下 JSON 格式返回（不要有任何额外文字）：
+
+    {{
+      "direction": "多头 / 空头 / 观望",
+      "entry_zone": "入场区间描述（或无）",
+      "stop_loss": "止损描述（或无）",
+      "target": "目标 / 减仓区间（或无）",
+      "reason": "引用了规则X：当前行情匹配这条规则的原因...（必须包含规则引用 + 匹配逻辑）"
+    }}
+
+    【Few-shot 示例】
+
+    示例1（高质量 reason）：
+    {{
+      "direction": "观望",
+      "reason": "引用2.3趋势判断与行情选择：当前虽处于下降趋势，但未出现2B反转、头肩底或颈线突破等明确进场定式，符合‘无明确定式时主动放弃低置信度机会’的规则，因此严格执行观望。"
+    }}
+
+    示例2（高质量 reason）：
+    {{
+      "direction": "空头",
+      "reason": "引用2.1量仓分析核心逻辑：价格持续回落同时持仓稳步增加，符合‘持仓增加提供趋势燃料’的规则，当前空头力量占优；同时引用3.1背驰判断标准，MACD柱子面积缩小，出现趋势背驰，因此在压力位附近做空。"
+    }}
+
+    请严格按照以上要求输出 JSON。
+    """
 
     system_prompt = state["messages"][0]["content"] if state["messages"] else ""
     response = call_llm(prompt, system_prompt)
