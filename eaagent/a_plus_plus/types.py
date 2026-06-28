@@ -5,6 +5,7 @@ from datetime import datetime
 
 class TAState(TypedDict):
     current_symbol: str
+    current_playbook: str
     messages: List[dict]
     thread_id: str
     timeframes: List[str]

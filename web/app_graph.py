@@ -10,19 +10,24 @@ from eaagent.playbooks.manager import manager
 from eaagent.tools.tushare_futures import get_futures_daily_with_ma
 
 def run_analysis(symbol, data_source, playbook_name):
+    # 设置数据源
     os.environ["USE_MOCK_OBSERVATION"] = "false" if data_source == "Tushare" else "true"
     os.environ["DATA_PROVIDER"] = "tushare_futures"
 
+    # 关键：先加载用户选择的 Playbook，拿到正确的 name
     content, name = manager.load(playbook_name)
+    print(f"[DEBUG] Web 传递的 Playbook: {playbook_name} → 实际使用: {name}")
+
+    # 把正确的 name 传给 create_initial_state
+    state = create_initial_state(symbol, playbook_name=name)
 
     app = build_graph()
-    state = create_initial_state(symbol)
     final_state = app.invoke(state, {"configurable": {"thread_id": state["thread_id"]}})
 
     signal = final_state.get("signals", [{}])[-1]
     extra = final_state.get("extra_data", {})
 
-    # 主合约K线
+    # K线图部分（保持不变）
     df_main = pd.DataFrame(extra.get("technical_indicators", []))
     if df_main.empty:
         df_main = get_futures_daily_with_ma(symbol, months=3)
@@ -34,7 +39,7 @@ def run_analysis(symbol, data_source, playbook_name):
     i_chart = create_candlestick_chart(df_i, "I2609.DCE (铁矿石)")
     j_chart = create_candlestick_chart(df_j, "J2609.DCE (焦炭)")
 
-    result_text = f"✅ Playbook: {name} | 方向: {signal.get('direction', '观望')}"
+    result_text = f"✅ 当前使用 Playbook: {name} | 方向: {signal.get('direction', '观望')}"
 
     return result_text, main_chart, i_chart, j_chart
 
@@ -43,7 +48,7 @@ with gr.Blocks() as demo:
     with gr.Row():
         symbol = gr.Textbox(value="RB2610.SHF", label="合约")
         source = gr.Dropdown(["Tushare", "Mock"], value="Tushare", label="数据源")
-        playbook = gr.Dropdown(["v3", "zen", "dow", "abu"], value="v3", label="Playbook")
+        playbook = gr.Dropdown(["v3", "zen", "dow", "abu"], value="v3", label="Playbook风格")
     btn = gr.Button("开始分析", variant="primary")
 
     with gr.Row():
@@ -55,10 +60,10 @@ with gr.Blocks() as demo:
                 with gr.Tab("相关品种 K线"):
                     with gr.Row():
                         with gr.Column():
-                            gr.Markdown("**I2609.DCE**")
+                            gr.Markdown("**铁矿石 I2609**")
                             i_plot = gr.Plot()
                         with gr.Column():
-                            gr.Markdown("**J2609.DCE**")
+                            gr.Markdown("**焦炭 J2609**")
                             j_plot = gr.Plot()
 
     btn.click(

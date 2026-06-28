@@ -1,6 +1,6 @@
 from eaagent.a_plus_plus.types import TAState
 from eaagent.a_plus_plus.utils.console import color_print, Colors
-from eaagent.a_plus_plus.playbook_loader import build_playbook_prompt
+from eaagent.prompts.fortress import build_fortified_observation_prompt
 import json
 import pandas as pd
 from typing import List, Dict, Any
@@ -20,26 +20,26 @@ def structured_observation(state: TAState) -> TAState:
     daily_data = state.get("market_data", {}).get("daily_df", [])
     data_str = _prepare_daily_data(daily_data)
 
-    prompt = f"""你是一个严格遵守 Playbook 的期货分析师。
+    # 融合版：Fortress铁律 + 完整详细Prompt + 强制要求
+    base_prompt = build_fortified_observation_prompt(state.get("current_playbook", "v3"))
 
-【Playbook 完整规则】
-{build_playbook_prompt()}
+    prompt = f"""{base_prompt}
 
-以下是 {state['current_symbol']} 的日线数据（已包含 oi_chg）：
+以下是 {state['current_symbol']} 的完整日线数据（包含 oi 和 oi_chg）：
 
 {data_str}
 
-**强制要求**：
-1. 必须明确写出参考了 Playbook 的哪一条规则（写具体标题）
+**强制要求（必须严格遵守）**：
+1. 必须明确写出参考了 Playbook 的哪一条或哪几条具体规则（写完整标题）
 2. 必须说明当前市场情况如何匹配该规则
-3. **data_requests 必须是字典列表**，不能是字符串
+3. data_requests 必须是字典列表，不能是字符串
 
-请严格按以下 JSON 返回：
+请严格按以下JSON格式返回（不要有任何额外文字）：
 
 {{
-  "phase": "...",
+  "phase": "当前所处阶段",
   "trend": {{"mid_term": "...", "short_term": "..."}},
-  "key_levels": {{...}},
+  "key_levels": {{"strong_resistance": [...], "strong_support": [...]}},
   "volume_oi_linkage": "...",
   "key_events": [...],
   "force_comparison": "...",

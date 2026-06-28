@@ -4,37 +4,36 @@ eaagent/a_plus_plus/graph.py
 """
 
 from __future__ import annotations
-from typing import TypedDict, List, Dict, Any, Optional, Literal
-from datetime import datetime
-import os
+
 import json
+import os
+from datetime import datetime
+from typing import Literal
 
-from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import StateGraph, END
 
-from .data_provider import get_market_data, get_historical_data
-from .playbook_loader import load_playbook, build_playbook_prompt, get_relevant_playbook_rules, get_playbook_id, PLAYBOOK_CONTENT
+from eaagent.playbooks.manager import manager
 from .config import MAX_ROUNDS
-from .types import TAState
-
-# ==================== 工具模块 ====================
-from .utils.llm import call_llm
-from .utils.console import color_print, Colors
-
 # ==================== 节点模块 ====================
 from .nodes import persist, data_ingestion
-from .nodes.observation import structured_observation
 from .nodes.data_gathering import data_gathering
-from .nodes.quality_sensor import quality_sensor
 from .nodes.llm_critique import llm_critique
-from eaagent.data_providers.factory import get_data_provider
+from .nodes.observation import structured_observation
+from .nodes.quality_sensor import quality_sensor
+from .playbook_loader import load_playbook, get_relevant_playbook_rules, get_playbook_id
+from .types import TAState
+from .utils.console import color_print, Colors
+# ==================== 工具模块 ====================
+from .utils.llm import call_llm
 
 
-def create_initial_state(symbol: str = "RB2610.SHF") -> TAState:
+def create_initial_state(symbol: str = "RB2610.SHF", playbook_name: str = "v3") -> TAState:
     now = datetime.now()
     use_mock = os.getenv("USE_MOCK_OBSERVATION", "true").lower() == "true"
     return TAState(
         current_symbol=symbol,
+        current_playbook=playbook_name,   # ← 新增这一行，关键！
         messages=[],
         thread_id=f"ta-{symbol}-{now.strftime('%Y%m%d%H%M%S')}",
         timeframes=["5m", "30m", "1d"],
@@ -68,36 +67,22 @@ def initialize_state(state: TAState) -> TAState:
     color_print(f"[初始化] 开始分析 {state['current_symbol']}", Colors.BOLD)
     color_print(f"  - 数据来源: {state['data_source'].upper()}", Colors.OKCYAN)
 
-    if load_playbook():
-        state["playbook_used"] = True
-        from eaagent.a_plus_plus.strategies.playbook_strategies import (
-            FullPlaybookStrategy,
-            CoreRulesStrategy,
-            IdOnlyStrategy
-        )
+    # 强制使用 Web 选择的 Playbook
+    pb = state.get("current_playbook", "v3")
+    color_print(f"  - Playbook: {pb} ← 来自Web选择", Colors.OKGREEN)
 
-        playbook_id = get_playbook_id("v3")
-        state["playbook_id"] = playbook_id
+    content, name = manager.load(pb)
+    state["current_playbook"] = name
 
-        strategy_mode = os.getenv("PLAYBOOK_STRATEGY", "full").lower()
+    state["playbook_used"] = True
+    state["playbook_id"] = get_playbook_id()
 
-        if not state.get("playbook_content_sent", False):
-            if strategy_mode == "core":
-                strategy = CoreRulesStrategy()
-                color_print(f"[Playbook] 使用核心规则策略，ID: {playbook_id}", Colors.OKGREEN)
-            else:
-                strategy = FullPlaybookStrategy()
-                color_print(f"[Playbook] 使用完整策略，ID: {playbook_id}", Colors.OKGREEN)
+    from eaagent.a_plus_plus.strategies.playbook_strategies import FullPlaybookStrategy
+    strategy = FullPlaybookStrategy()
+    color_print(f"[Playbook] 使用完整策略 → {name}", Colors.OKGREEN)
 
-            state["playbook_content_sent"] = True
-        else:
-            strategy = IdOnlyStrategy()
-            color_print(f"[Playbook] 使用 ID 策略，ID: {playbook_id}", Colors.OKCYAN)
-
-        system_prompt = strategy.get_system_prompt(PLAYBOOK_CONTENT, playbook_id)
-        state["messages"].append({"role": "system", "content": system_prompt})
-    else:
-        state["playbook_used"] = False
+    system_prompt = strategy.get_system_prompt(content, state["playbook_id"])
+    state["messages"].append({"role": "system", "content": system_prompt})
 
     color_print(f"  - 最大分析轮次: {state['max_rounds']}", Colors.OKCYAN)
     color_print("="*70, Colors.BOLD)
@@ -220,6 +205,7 @@ def should_continue_after_critique(state: TAState) -> Literal["continue", "final
     if "false" in raw_response.lower():
         return "finalize"
     return "continue"
+
 def final_output(state: TAState) -> TAState:
     color_print("\n" + "="*70, Colors.BOLD)
     color_print(f"【{state['current_symbol']} 技术分析报告】（共 {state['analysis_rounds']} 轮）", Colors.BOLD)
@@ -283,6 +269,6 @@ def build_graph():
 if __name__ == "__main__":
     color_print("=== EA Agent - Harness 重构版 ===", Colors.BOLD)
     app = build_graph()
-    state = create_initial_state("RB2610.SHF")
+    state = create_initial_state("RB2610.SHF", playbook_name="zen")  # ← 改这里测试 zen
     config = {"configurable": {"thread_id": state["thread_id"]}}
     app.invoke(state, config)
