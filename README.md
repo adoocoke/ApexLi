@@ -2,7 +2,7 @@
 
 **EA Agent** 是一个基于 **LangGraph** 构建的**期货技术分析智能体**，采用 **Martin Fowler Agent Harness** 架构（Guides/Sensors/Actor/Steering/Memory），专注于为期货交易者提供**结构化、多轮自动优化**的技术分析。
 
-核心目标：**透明、可观测、可迭代**（每轮清晰日志、Playbook 规则引用、质量传感器检查），而不是黑盒输出。
+**核心理念**：每一步分析都**可审计** — 数据来源、精确引用的 Playbook 规则、质量传感器结果、LLM Critique 以及多轮演进过程在控制台和报告中完全可见。没有黑盒。
 
 ---
 
