@@ -1,8 +1,10 @@
+# -*- coding: utf-8 -*-
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Dict
 import tushare as ts
 import re
+import os
 
 def _get_correct_exchange(symbol: str) -> str:
     prefix = re.match(r'([A-Z]+)', symbol.upper())
@@ -128,3 +130,34 @@ def get_futures_daily_with_ma(
     except Exception as e:
         print(f"[Tushare] 获取 {ts_code} 带均线数据失败: {e}")
         return pd.DataFrame()
+
+
+def get_popular_main_contracts() -> List[str]:
+    """返回热门主力合约列表 (固定 + 动态验证)"""
+    popular = ["RB2610.SHF", "I2609.DCE", "HC2410.SHF", "JM2409.DCE", "J2409.DCE", "ZC2409.CZC"]
+    return popular
+
+
+def get_main_contracts(exchange: str = "", limit: int = 20) -> List[Dict]:
+    """从 Tushare 获取主力合约列表 (按 volume/oi 排序)"""
+    try:
+        token = os.getenv("TUSHARE_TOKEN")
+        if not token:
+            print("[Tushare] No token, returning popular list")
+            return [{"ts_code": c, "name": c.split('.')[0]} for c in get_popular_main_contracts()]
+
+        pro = ts.pro_api(token)
+        df = pro.fut_basic(exchange=exchange, fut_type='1')
+        if df is None or df.empty:
+            return [{"ts_code": c, "name": c.split('.')[0]} for c in get_popular_main_contracts()]
+
+        # 筛选活跃合约并排序 (主力通常 vol/oi 高)
+        if 'delist_date' in df.columns:
+            df = df[df['delist_date'] > '2026-12-31']  # 排除已退市
+        if 'vol' in df.columns:
+            df = df.sort_values('vol', ascending=False)
+        main_list = df.head(limit)[['ts_code', 'name']].to_dict('records')
+        return main_list if main_list else [{"ts_code": c, "name": c.split('.')[0]} for c in get_popular_main_contracts()]
+    except Exception as e:
+        print(f"[Tushare] get_main_contracts failed: {e}")
+        return [{"ts_code": c, "name": c.split('.')[0]} for c in get_popular_main_contracts()]

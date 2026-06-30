@@ -1,4 +1,7 @@
-import os, sys, pandas as pd
+# -*- coding: utf-8 -*-
+import os
+import sys
+import pandas as pd
 from pathlib import Path
 root = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(root))
@@ -7,7 +10,7 @@ import gradio as gr
 from eaagent.a_plus_plus.graph import build_graph, create_initial_state
 from web.charts.kline import create_candlestick_chart
 from eaagent.playbooks.manager import manager
-from eaagent.tools.tushare_futures import get_futures_daily_with_ma
+from eaagent.tools.tushare_futures import get_futures_daily_with_ma, get_main_contracts, get_popular_main_contracts
 
 def run_analysis(symbol, data_source, playbook_name):
     # 设置数据源
@@ -43,12 +46,25 @@ def run_analysis(symbol, data_source, playbook_name):
     return result_text, main_chart, i_chart, j_chart
 
 with gr.Blocks() as demo:
-    gr.Markdown("# ApexLi • 主合约 & 相关品种K线（双图）")
+    gr.Markdown("# ApexLi • 期货主力合约菜单 + 动态 K线")
+
     with gr.Row():
-        symbol = gr.Textbox(value="RB2610.SHF", label="合约")
+        popular_menu = gr.Dropdown(
+            choices=get_popular_main_contracts(),
+            value="RB2610.SHF",
+            label="热门主力合约",
+            interactive=True
+        )
+        all_menu = gr.Dropdown(
+            choices=[c["ts_code"] for c in get_main_contracts()],
+            value="I2609.DCE",
+            label="所有活跃合约",
+            interactive=True
+        )
         source = gr.Dropdown(["Tushare", "Mock"], value="Tushare", label="数据源")
         playbook = gr.Dropdown(["v3", "zen", "dow", "abu"], value="v3", label="Playbook风格")
-    btn = gr.Button("开始分析", variant="primary")
+
+    btn = gr.Button("开始完整分析 (EA)", variant="primary")
 
     with gr.Row():
         console = gr.Textbox(label="📜 分析过程", lines=10, scale=4)
@@ -65,9 +81,18 @@ with gr.Blocks() as demo:
                             gr.Markdown("**焦炭 J2609**")
                             j_plot = gr.Plot()
 
+    # 菜单变更立即更新主 K线 (新功能)
+    def update_kline(symbol):
+        df = get_futures_daily_with_ma(symbol, months=3)
+        chart = create_candlestick_chart(df, symbol)
+        return chart
+
+    popular_menu.change(fn=update_kline, inputs=popular_menu, outputs=main_plot)
+    all_menu.change(fn=update_kline, inputs=all_menu, outputs=main_plot)
+
     btn.click(
         fn=run_analysis,
-        inputs=[symbol, source, playbook],
+        inputs=[popular_menu, source, playbook],  # use popular_menu as symbol
         outputs=[console, main_plot, i_plot, j_plot]
     )
 
