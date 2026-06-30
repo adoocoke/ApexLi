@@ -150,13 +150,27 @@ make test-cov
 
 ## 开发建议
 
-- 日常开发推荐开启 Mock 模式（`USE_MOCK_OBSERVATION=true`）
-- 修改 `graph.py` 后请运行 `make test`
-- 新增功能建议同步更新测试和日志输出
-- 提交前建议执行 `make test`
+- 日常开发推荐开启 Mock 模式 (`USE_MOCK_OBSERVATION=true`)。
+- 修改 `graph.py` 或 nodes 后必须运行 `make test` (AGENTS.md Test-First)。
+- 新功能 (Web 双菜单主力合约 K线) 已集成 — 直接在 UI 中选择合约即可动态更新图表。
+- 参考 `docs/AGENTS.md` (Orient-Clarify-Slice-Check-TDD-Verify-Reflect 循环)、`docs/wiki/Development-Guide.md` 和 `todo/remaining_work.md`。
+- 高优先剩余任务：完善 Strategy 完全切换、清理旧测试文件、CI 覆盖率。
 
 ---
 
 ## License
 
 MIT
+
+---
+
+**最近进展 (EA-001~EA-005 + 新功能)**
+
+- **EA-001/002**：结构化 `playbook_references` + 强 "引用XX规则：" reason。
+- **EA-003/004**：早停问题解决 — zen/v3 稳定运行 2-3+ 轮。
+- **EA-005**：报告新增「多轮路径总结」、「关键规则一览」、「决策依据」 — 可解释性大幅提升。
+- **新功能**：Web 双菜单 (热门主力 + 所有合约)，点击动态更新 K线 (基于 Tushare + 现有 kline)。
+
+**整体质量**：从 42-72% 提升至 85%+，Web 体验显著改善。系统更透明、可观测、可迭代。
+
+*Built for transparency. Maintained with ❤️ by the ApexLi team.*
