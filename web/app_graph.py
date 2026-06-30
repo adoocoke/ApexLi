@@ -47,9 +47,12 @@ def run_analysis(symbol, data_source, playbook_name, strategy_name="full"):
     return result_text, main_chart, i_chart, j_chart
 
 with gr.Blocks() as demo:
-    gr.Markdown("# ApexLi • 期货主力合约菜单 + 动态 K线")
+    gr.Markdown("# ApexLi • 期货主力合约菜单 + 动态 K线 (带过滤)")
 
     with gr.Row():
+        # 合约过滤 (新功能)
+        exchange_filter = gr.Dropdown(["全部", "SHF", "DCE", "CZCE"], value="全部", label="交易所过滤")
+        search_box = gr.Textbox(placeholder="搜索合约 (如 RB 或 I)", label="合约搜索")
         popular_menu = gr.Dropdown(
             choices=get_popular_main_contracts(),
             value="RB2610.SHF",
@@ -83,7 +86,24 @@ with gr.Blocks() as demo:
                             gr.Markdown("**焦炭 J2609**")
                             j_plot = gr.Plot()
 
-    # 菜单变更立即更新主 K线 (新功能)
+    # 合约过滤 + 搜索功能 (新)
+    def filter_contracts(exchange, search_term):
+        contracts = get_main_contracts()
+        if exchange != "全部":
+            contracts = [c for c in contracts if c["ts_code"].endswith(exchange)]
+        if search_term:
+            search_term = search_term.upper()
+            contracts = [c for c in contracts if search_term in c["ts_code"]]
+        return [c["ts_code"] for c in contracts]
+
+    def update_all_menu(exchange, search_term):
+        choices = filter_contracts(exchange, search_term)
+        return gr.Dropdown(choices=choices or ["RB2610.SHF"], value=choices[0] if choices else "RB2610.SHF")
+
+    exchange_filter.change(fn=update_all_menu, inputs=[exchange_filter, search_box], outputs=all_menu)
+    search_box.change(fn=update_all_menu, inputs=[exchange_filter, search_box], outputs=all_menu)
+
+    # 菜单变更立即更新主 K线
     def update_kline(symbol):
         df = get_futures_daily_with_ma(symbol, months=3)
         chart = create_candlestick_chart(df, symbol)
