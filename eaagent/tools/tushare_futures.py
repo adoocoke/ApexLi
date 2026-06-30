@@ -133,23 +133,43 @@ def get_futures_daily_with_ma(
 
 
 def get_popular_main_contracts() -> List[str]:
-    """返回热门主力合约列表 (固定 + 动态验证)"""
-    popular = ["RB2610.SHF", "I2609.DCE", "HC2410.SHF", "JM2409.DCE", "J2409.DCE", "ZC2409.CZC"]
-    return popular
+    """返回热门主力合约列表 (中文+代码格式, 优先用户关注的品种 per plan)"""
+    # VARIETY_NAME_MAP for Chinese display (螺纹钢 RB2610.SHF etc.)
+    VARIETY_NAME_MAP = {
+        "RB": "螺纹钢", "I": "铁矿石", "JM": "焦煤", "J": "焦炭",
+        "RM": "菜粕", "P": "棕榈油", "SA": "纯碱", "FG": "玻璃",
+        "AL": "沪铝", "AG": "沪银", "CF": "棉花", "LC": "碳酸锂",
+        "IC": "IC", "IM": "IM", "HC": "热卷", "ZC": "焦炭相关",
+    }
+    popular_codes = [
+        "RB2610.SHF", "I2609.DCE", "JM2609.DCE", "J2609.DCE",  # 螺纹/铁矿/焦煤/焦炭
+        "SA2609.CZC", "FG2609.CZC", "AL2610.SHF", "AG2609.SHF", # 纯碱/玻璃/沪铝/沪银
+        "P2609.DCE", "RM2609.CZC", "CF2609.CZC", "IC2509.CFE", "IM2509.CFE", "LC2609.SHF"
+    ]
+    # Format as "中文 代码" for Dropdown display (user requirement)
+    return [f"{VARIETY_NAME_MAP.get(code.split('.')[0], code.split('.')[0])} {code}" for code in popular_codes]
 
 
 def get_main_contracts(exchange: str = "", limit: int = 20) -> List[Dict]:
-    """从 Tushare 获取主力合约列表 (按 volume/oi 排序)"""
+    """从 Tushare 获取主力合约列表 (按 volume/oi 排序, name增强为中文+代码 per plan)"""
+    VARIETY_NAME_MAP = {  # Reuse same map for consistency
+        "RB": "螺纹钢", "I": "铁矿石", "JM": "焦煤", "J": "焦炭",
+        "RM": "菜粕", "P": "棕榈油", "SA": "纯碱", "FG": "玻璃",
+        "AL": "沪铝", "AG": "沪银", "CF": "棉花", "LC": "碳酸锂",
+        "IC": "IC", "IM": "IM", "HC": "热卷", "ZC": "焦炭相关",
+    }
     try:
         token = os.getenv("TUSHARE_TOKEN")
         if not token:
             print("[Tushare] No token, returning popular list")
-            return [{"ts_code": c, "name": c.split('.')[0]} for c in get_popular_main_contracts()]
+            popular = get_popular_main_contracts()  # Now returns formatted strings
+            return [{"ts_code": item.split()[-1], "name": item} for item in popular]
 
         pro = ts.pro_api(token)
         df = pro.fut_basic(exchange=exchange, fut_type='1')
         if df is None or df.empty:
-            return [{"ts_code": c, "name": c.split('.')[0]} for c in get_popular_main_contracts()]
+            popular = get_popular_main_contracts()
+            return [{"ts_code": item.split()[-1], "name": item} for item in popular]
 
         # 筛选活跃合约并排序 (主力通常 vol/oi 高)
         if 'delist_date' in df.columns:
@@ -157,7 +177,13 @@ def get_main_contracts(exchange: str = "", limit: int = 20) -> List[Dict]:
         if 'vol' in df.columns:
             df = df.sort_values('vol', ascending=False)
         main_list = df.head(limit)[['ts_code', 'name']].to_dict('records')
-        return main_list if main_list else [{"ts_code": c, "name": c.split('.')[0]} for c in get_popular_main_contracts()]
+        # Enhance name with Chinese if possible (map fallback)
+        for item in main_list:
+            prefix = item['ts_code'].split('.')[0].split()[0] if ' ' in item['ts_code'] else item['ts_code'].split('.')[0]
+            chinese = VARIETY_NAME_MAP.get(prefix, item.get('name', prefix))
+            item['name'] = f"{chinese} {item['ts_code']}"
+        return main_list if main_list else [{"ts_code": item.split()[-1], "name": item} for item in get_popular_main_contracts()]
     except Exception as e:
         print(f"[Tushare] get_main_contracts failed: {e}")
-        return [{"ts_code": c, "name": c.split('.')[0]} for c in get_popular_main_contracts()]
+        popular = get_popular_main_contracts()
+        return [{"ts_code": item.split()[-1], "name": item} for item in popular]
