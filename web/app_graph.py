@@ -12,14 +12,15 @@ from web.charts.kline import create_candlestick_chart
 from eaagent.playbooks.manager import manager
 from eaagent.tools.tushare_futures import get_futures_daily_with_ma, get_main_contracts, get_popular_main_contracts
 
-def run_analysis(symbol, data_source, playbook_name):
+def run_analysis(symbol, data_source, playbook_name, strategy_name="full"):
     # 设置数据源
     os.environ["USE_MOCK_OBSERVATION"] = "false" if data_source == "Tushare" else "true"
     os.environ["DATA_PROVIDER"] = "tushare_futures"
+    os.environ["PLAYBOOK_STRATEGY"] = strategy_name  # 新增 Strategy 支持
 
     # 关键：先加载用户选择的 Playbook，拿到正确的 name
     content, name = manager.load(playbook_name)
-    print(f"[DEBUG] Web 传递的 Playbook: {playbook_name} → 实际使用: {name}")
+    print(f"[DEBUG] Web 传递的 Playbook: {playbook_name} → 实际使用: {name} | Strategy: {strategy_name}")
 
     # 把正确的 name 传给 create_initial_state
     state = create_initial_state(symbol, playbook_name=name)
@@ -63,6 +64,7 @@ with gr.Blocks() as demo:
         )
         source = gr.Dropdown(["Tushare", "Mock"], value="Tushare", label="数据源")
         playbook = gr.Dropdown(["v3", "zen", "dow", "abu"], value="v3", label="Playbook风格")
+        strategy = gr.Dropdown(["full", "core", "idonly"], value="full", label="Strategy策略 (Token优化)")
 
     btn = gr.Button("开始完整分析 (EA)", variant="primary")
 
@@ -92,7 +94,7 @@ with gr.Blocks() as demo:
 
     btn.click(
         fn=run_analysis,
-        inputs=[popular_menu, source, playbook],  # use popular_menu as symbol
+        inputs=[popular_menu, source, playbook, strategy],
         outputs=[console, main_plot, i_plot, j_plot]
     )
 

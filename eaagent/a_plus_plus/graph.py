@@ -76,9 +76,20 @@ def initialize_state(state: TAState) -> TAState:
     state["playbook_used"] = True
     state["playbook_id"] = manager.get_id(name)
 
-    from eaagent.a_plus_plus.strategies.playbook_strategies import FullPlaybookStrategy
-    strategy = FullPlaybookStrategy()
-    color_print(f"[Playbook] 使用完整策略 → {name}", Colors.OKGREEN)
+    # Strategy 切换 (支持 env var + Web)
+    strategy_name = os.getenv("PLAYBOOK_STRATEGY", "full").lower()
+    if strategy_name == "core":
+        from eaagent.a_plus_plus.strategies.playbook_strategies import CoreRulesStrategy
+        strategy = CoreRulesStrategy()
+        color_print(f"[Playbook] 使用 CoreRulesStrategy (精简规则) → {name}", Colors.OKGREEN)
+    elif strategy_name == "idonly":
+        from eaagent.a_plus_plus.strategies.playbook_strategies import IdOnlyStrategy
+        strategy = IdOnlyStrategy()
+        color_print(f"[Playbook] 使用 IdOnlyStrategy (仅ID) → {name}", Colors.OKGREEN)
+    else:
+        from eaagent.a_plus_plus.strategies.playbook_strategies import FullPlaybookStrategy
+        strategy = FullPlaybookStrategy()
+        color_print(f"[Playbook] 使用完整策略 (Full) → {name}", Colors.OKGREEN)
 
     system_prompt = strategy.get_system_prompt(content, state["playbook_id"])
     state["messages"].append({"role": "system", "content": system_prompt})
