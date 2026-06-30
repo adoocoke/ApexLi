@@ -11,6 +11,7 @@ from eaagent.a_plus_plus.graph import build_graph, create_initial_state
 from web.charts.kline import create_candlestick_chart
 from eaagent.playbooks.manager import manager
 from eaagent.tools.tushare_futures import get_futures_daily_with_ma, get_main_contracts, get_popular_main_contracts
+from web.report_builder import build_analysis_report
 
 def run_analysis(symbol, data_source, playbook_name, strategy_name="full"):
     # 设置数据源
@@ -31,20 +32,28 @@ def run_analysis(symbol, data_source, playbook_name, strategy_name="full"):
     signal = final_state.get("signals", [{}])[-1]
     extra = final_state.get("extra_data", {})
 
-    # K线图部分（保持不变）
+    # K线图 (仅从menu更新, analysis不重复)
     df_main = pd.DataFrame(extra.get("technical_indicators", []))
     if df_main.empty:
         df_main = get_futures_daily_with_ma(symbol, months=3)
     main_chart = create_candlestick_chart(df_main, symbol)
 
-    # 强制显示相关品种 (扩展为关注品种中文显示 per plan)
-    df_i = get_futures_daily_with_ma("I2609.DCE", months=2)
-    df_j = get_futures_daily_with_ma("J2609.DCE", months=2)
-    i_chart = create_candlestick_chart(df_i, "I2609.DCE (铁矿石)")
-    j_chart = create_candlestick_chart(df_j, "J2609.DCE (焦炭)")
-    result_text = f"✅ 当前使用 Playbook: {name} | 方向: {signal.get('direction', '未返回方向')}\n关注品种菜单已启用中文显示 (螺纹钢 RB、铁矿石 I 等)"
+    # 3. Dynamic related (0-2 based on symbol, common correlations)
+    related_codes = get_related_for_symbol(symbol)
+    related_charts = []
+    name_map = {"I": "铁矿石", "J": "焦炭", "JM": "焦煤", "SA": "纯碱", "FG": "玻璃", "AL": "沪铝", "AG": "沪银"}
+    for rcode in related_codes[:2]:
+        df_r = get_futures_daily_with_ma(rcode, months=2)
+        rname = name_map.get(rcode.split('.')[0], rcode.split('.')[0])
+        related_charts.append(create_candlestick_chart(df_r, f"{rcode} ({rname})"))
+    i_chart = related_charts[0] if related_charts else None
+    j_chart = related_charts[1] if len(related_charts) > 1 else None
 
-    return result_text, main_chart, i_chart, j_chart
+    # 1. 真实分析过程 (report_builder填充console)
+    console_text = build_analysis_report(final_state, symbol, data_source)
+    result_text = f"✅ {name} 分析完成 | 方向: {signal.get('direction', 'N/A')}\n\n{console_text[:1000]}..."
+
+    return result_text, main_chart, i_chart or main_chart, j_chart or main_chart
 
 with gr.Blocks() as demo:
     gr.Markdown("# ApexLi • 期货主力合约菜单 + 动态 K线 (带过滤)")
@@ -53,20 +62,14 @@ with gr.Blocks() as demo:
         # 合约过滤 (新功能)
         exchange_filter = gr.Dropdown(["全部", "SHF", "DCE", "CZCE"], value="全部", label="交易所过滤")
         search_box = gr.Textbox(placeholder="搜索合约 (如 RB 或 I)", label="合约搜索")
-        popular_choices = get_popular_main_contracts()  # "中文 代码" format
+        popular_choices = get_popular_main_contracts()  # "中文 代码" format (fixed duplicate code e.g. no 'RB2610 RB2610.SHF')
         popular_menu = gr.Dropdown(
             choices=popular_choices,
-            value=popular_choices[0].split()[-1] if popular_choices else "RB2610.SHF",  # Use ts_code as value to avoid Gradio warning
+            value=popular_choices[0].split()[-1] if popular_choices else "RB2610.SHF",  # ts_code as value
             label="关注主力合约 (中文显示)",
             interactive=True
         )
-        main_choices = get_main_contracts()
-        all_menu = gr.Dropdown(
-            choices=[c.get("name", c["ts_code"]) for c in main_choices],  # Chinese name for display
-            value=main_choices[0]["ts_code"] if main_choices else "I2609.DCE",
-            label="所有活跃合约 (中文+代码)",
-            interactive=True
-        )
+        # 5. 移除所有活跃合约菜单 (per user request) - only popular + filters remain
         source = gr.Dropdown(["Tushare", "Mock"], value="Tushare", label="数据源")
         playbook = gr.Dropdown(["v3", "zen", "dow", "abu"], value="v3", label="Playbook风格")
         strategy = gr.Dropdown(["full", "core", "idonly"], value="full", label="Strategy策略 (Token优化)")
@@ -74,46 +77,38 @@ with gr.Blocks() as demo:
     btn = gr.Button("开始完整分析 (EA)", variant="primary")
 
     with gr.Row():
-        console = gr.Textbox(label="📜 分析过程", lines=10, scale=4)
+        console = gr.Textbox(label="📜 分析过程 (多轮路径+规则引用+决策依据)", lines=12, scale=4)
         with gr.Column(scale=6):
             with gr.Tabs():
                 with gr.Tab("当前合约 K线"):
                     main_plot = gr.Plot()
-                with gr.Tab("相关品种 K线"):
+                with gr.Tab("相关品种 K线 (0-2个动态, 分析后更新)"):
                     with gr.Row():
                         with gr.Column():
-                            gr.Markdown("**铁矿石 I2609**")
+                            i_markdown = gr.Markdown("**相关1**")
                             i_plot = gr.Plot()
                         with gr.Column():
-                            gr.Markdown("**焦炭 J2609**")
+                            j_markdown = gr.Markdown("**相关2**")
                             j_plot = gr.Plot()
 
-    # 合约过滤 + 搜索功能 (新)
+    # 合约过滤 + 搜索功能 (新, 不再依赖all_menu)
     def filter_contracts(exchange, search_term):
-        """支持中文显示的过滤 (extract ts_code from '中文 代码' string)"""
+        """支持中文显示的过滤 (仅用于search提示, extract ts_code)"""
         contracts = get_main_contracts()
         if exchange != "全部":
             contracts = [c for c in contracts if c["ts_code"].endswith(exchange)]
         if search_term:
             search_term = search_term.upper()
-            contracts = [c for c in contracts if search_term in c["ts_code"] or search_term in c.get("name", "")]
-        # Return ts_code for value, but UI shows full Chinese name via all_menu choices
+            contracts = [c for c in contracts if search_term in c["ts_code"] or search_term in str(c.get("name", ""))]
         return [c["ts_code"] for c in contracts]
 
-    def update_all_menu(exchange, search_term):
-        choices_ts = filter_contracts(exchange, search_term)
-        # Rebuild full Chinese choices using popular map for display
-        popular_map = {item.split()[-1]: item for item in get_popular_main_contracts()}
-        full_choices = [popular_map.get(ts, f"{ts.split('.')[0]} {ts}") for ts in choices_ts or ["RB2610.SHF"]]
-        default_value = full_choices[0] if full_choices else "螺纹钢 RB2610.SHF"
-        return gr.Dropdown(choices=full_choices, value=default_value)
+    # update_all_menu no longer needed for all_menu (removed); filter now self-contained
 
-    exchange_filter.change(fn=update_all_menu, inputs=[exchange_filter, search_box], outputs=all_menu)
-    search_box.change(fn=update_all_menu, inputs=[exchange_filter, search_box], outputs=all_menu)
+    # 2+5. 仅菜单change更新K线 (移除all_menu, analysis click不再重复更新K线避免白版; filter仅更新自身)
+    exchange_filter.change(fn=lambda e, s: e, inputs=[exchange_filter, search_box], outputs=exchange_filter)
+    search_box.change(fn=lambda e, s: None, inputs=[exchange_filter, search_box], outputs=main_plot)  # No K-line on search
 
-    # 菜单变更立即更新主 K线 (支持中文显示的symbol解析)
     def update_kline(symbol):
-        # Extract ts_code if Chinese format passed ('螺纹钢 RB2610.SHF' → 'RB2610.SHF')
         if isinstance(symbol, str) and ' ' in symbol:
             symbol = symbol.split()[-1]
         df = get_futures_daily_with_ma(symbol, months=3)
@@ -121,16 +116,26 @@ with gr.Blocks() as demo:
         return chart
 
     popular_menu.change(fn=update_kline, inputs=popular_menu, outputs=main_plot)
-    all_menu.change(fn=update_kline, inputs=all_menu, outputs=main_plot)
+    # all_menu removed - K-line only updates on popular change
 
-    def extract_ts_code(display_value):
-        """Helper to extract ts_code from Chinese '品种 代码' for run_analysis"""
-        if isinstance(display_value, str) and ' ' in display_value:
-            return display_value.split()[-1]
-        return display_value
+    # 3. Dynamic related varieties (0-2 per contract, hardcoded map for common correlations: RB->I/JM/HC, I->J/JM etc.)
+    RELATED_MAP = {
+        "RB": ["I2609.DCE", "JM2609.DCE"],  # 螺纹 -> 铁矿/焦煤
+        "I": ["J2609.DCE", "JM2609.DCE"],   # 铁矿 -> 焦炭/焦煤
+        "JM": ["J2609.DCE", "RB2610.SHF"],
+        "J": ["JM2609.DCE", "I2609.DCE"],
+        "SA": ["FG2609.CZC"], "FG": ["SA2609.CZC"],
+        "AL": ["AG2609.SHF"], "AG": ["AL2610.SHF"],
+        "P": ["RM2609.CZC"], "CF": ["SR2609.CZC"],
+    }
+
+    def get_related_for_symbol(symbol):
+        prefix = symbol.split('.')[0][:2] if '.' in symbol else symbol[:2]
+        related_codes = RELATED_MAP.get(prefix, ["I2609.DCE", "J2609.DCE"][:2])  # 0-2
+        return related_codes
 
     btn.click(
-        fn=lambda sym, *args: run_analysis(extract_ts_code(sym), *args),  # Parse Chinese before analysis
+        fn=lambda sym, *args: run_analysis(extract_ts_code(sym) if 'extract_ts_code' in globals() else sym, *args),
         inputs=[popular_menu, source, playbook, strategy],
         outputs=[console, main_plot, i_plot, j_plot]
     )
