@@ -27,6 +27,17 @@ def data_gathering(state: TAState) -> TAState:
     if "extra_data" not in state:
         state["extra_data"] = {}
 
+    # 兜底：如果LLM没有请求工具，自动调用相关和持仓工具 (确保JM/SA有数据, 解决空extra_data)
+    if not data_requests:
+        color_print("  → LLM未请求工具, 自动调用相关+持仓工具", Colors.WARNING)
+        from .tools import get_related_futures_dynamic, get_futures_holding
+        related_result = get_related_futures_dynamic(state.get("current_symbol", "RB2610.SHF"))
+        holding_result = get_futures_holding(state.get("current_symbol", "RB2610.SHF"))
+        state["extra_data"]["related"] = related_result
+        state["extra_data"]["holding"] = holding_result
+        color_print(f"    → 自动获取相关数据: {related_result.get('summary', 'N/A')}", Colors.OKGREEN)
+        color_print(f"    → 自动获取持仓数据: {holding_result.get('summary', holding_result.get('reason', 'N/A'))[:80]}...", Colors.OKGREEN)
+
     for req in data_requests:
         if isinstance(req, str):
             color_print(f"  → LLM 返回字符串: {req}", Colors.WARNING)
@@ -42,21 +53,26 @@ def data_gathering(state: TAState) -> TAState:
         if reason:
             color_print(f"    原因: {reason}", Colors.OKCYAN)
 
-        if data_type == "相关品种日线":
-            # Fully dynamic per current_symbol (no fixed fallback)
+        if data_type == "相关品种日线" or "related" in data_type.lower():
             symbols = req.get("symbols", [])
-            if not symbols:  # LLM didn't provide or empty → use map
+            if not symbols:
                 symbols = get_related_for_symbol(state.get("current_symbol", "RB2610.SHF"))
             df = get_related_futures_daily(symbols, months=3)
             state["extra_data"]["related_futures"] = df.to_dict("records") if not df.empty else []
             color_print(f"    → 已获取相关品种数据 {len(state['extra_data'].get('related_futures', []))} 条 for {state.get('current_symbol')} (symbols: {symbols})", Colors.OKGREEN)
 
-        elif data_type == "技术指标":
+        elif data_type == "技术指标" or "technical" in data_type.lower():
             indicators = req.get("indicators", ["MA5", "MA13", "MA20"])
             ma_periods = [int(''.join(filter(str.isdigit, x))) for x in indicators if any(c.isdigit() for c in x)]
             df = get_futures_daily_with_ma(state["current_symbol"], months=3, ma_periods=ma_periods or [5, 13, 20])
             state["extra_data"]["technical_indicators"] = df.to_dict("records") if not df.empty else []
             color_print(f"    → 已获取技术指标数据 {len(state['extra_data'].get('technical_indicators', []))} 条", Colors.OKGREEN)
+
+        elif "holding" in data_type.lower():
+            from .tools import get_futures_holding
+            holding_result = get_futures_holding(state.get("current_symbol", "RB2610.SHF"))
+            state["extra_data"]["holding"] = holding_result
+            color_print(f"    → 已获取持仓数据 (status: {holding_result.get('status', 'unknown')})", Colors.OKGREEN)
 
     color_print(f"  → extra_data 已填充: {list(state['extra_data'].keys())}", Colors.OKGREEN)
     return state

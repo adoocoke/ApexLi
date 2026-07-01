@@ -106,12 +106,12 @@ def signal_generation(state: TAState) -> TAState:
     cur_playbook = state.get("current_playbook", "v3")
     relevant_rules = manager.get_rules(cur_playbook)
 
-    prompt = f"""你是一个严格遵守 Playbook 的期货交易决策者。可使用以下工具获取额外数据：
+    prompt = f"""你是一个严格遵守 Playbook 的期货交易决策者。**优先使用工具**获取最新/相关数据后再决策。
 
-可用工具：
+可用工具 (必须用 tool call 格式调用)：
 - get_futures_holding(ts_code): 持仓排名 (doc_id=290, 强烈推荐用于主力分析)
 - get_futures_basic(exchange): 合约基本信息和主力列表
-- get_related_futures_dynamic(symbol): 动态相关品种数据 (自动匹配RB→I/JM等)
+- get_related_futures_dynamic(symbol): 动态相关品种数据 (自动匹配RB→I/JM, SA→FG/SH)
 - generate_kline_chart(symbol): K线图
 
 如果需要工具但未提供, 输出 "NEED_TOOL: tool_name (reason for analysis)"。
