@@ -30,7 +30,7 @@ def data_gathering(state: TAState) -> TAState:
     # 兜底：如果LLM没有请求工具，自动调用相关和持仓工具 (确保JM/SA有数据, 解决空extra_data)
     if not data_requests:
         color_print("  → LLM未请求工具, 自动调用相关+持仓工具", Colors.WARNING)
-        from .tools import get_related_futures_dynamic, get_futures_holding
+        from eaagent.a_plus_plus.tools import get_related_futures_dynamic, get_futures_holding
         related_result = get_related_futures_dynamic(state.get("current_symbol", "RB2610.SHF"))
         holding_result = get_futures_holding(state.get("current_symbol", "RB2610.SHF"))
         state["extra_data"]["related"] = related_result
