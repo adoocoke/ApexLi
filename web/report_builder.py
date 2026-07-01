@@ -18,7 +18,7 @@ def build_analysis_report(
     issues = final_state.get("issues", [])
     critique_result = final_state.get("critique_result", {})
     sensor_suggestion = final_state.get("sensor_suggestion", {})
-    news = final_state.get("news") or extra_data.get("news", [])
+    news = final_state.get("news") or (extra_data.get("news", {}).get("news", []) if isinstance(extra_data.get("news"), dict) else extra_data.get("news", []))
 
     md = f"""<div style="font-family: system-ui, -apple-system, BlinkMacSystemFont; background: linear-gradient(145deg, #1a1a2e, #16213e); padding: 20px; border-radius: 12px; color: #e0f0ff; border: 1px solid #334455; max-width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
 
@@ -57,15 +57,23 @@ def build_analysis_report(
         if extra_data.get("technical_indicators"):
             md += f"- **Technical Indicators**: {len(extra_data['technical_indicators'])} records\n"
         if extra_data.get("holding"):
-            md += f"- **Holding Data**: {extra_data.get('holding', {}).get('total_brokers', 0)} brokers\n"
+            holding = extra_data.get("holding", {})
+            summary = holding.get("summary", "")
+            if not summary and holding.get("holding_data"):
+                summary = f"Top broker vol: {holding.get('holding_data', [{}])[0].get('vol', 'N/A')}"
+            md += f"- **Holding Data** (持仓排名): {summary or 'Top 5 brokers loaded'}\n"
 
     if news:
-        md += "\n### 📰 重要新闻与宏观驱动 (Top 5)\n"
-        for item in news[:5]:
-            impact = item.get("impact", "中")
+        md += "\n### 📰 重要新闻与宏观驱动 (Top 5 - LLM已分析/弃用评估)\n"
+        for item in (news[:5] if isinstance(news, list) else []):
+            impact = item.get("impact", "中") if isinstance(item, dict) else "中"
             impact_emoji = "🔴" if impact == "高" else "🟡"
-            md += f"- {impact_emoji} **{item.get('title', 'News')}** ({item.get('date', '近期')}) [{item.get('source', 'macro')}]\n"
-            md += f"  {item.get('summary', '')} **(影响: {impact})**\n\n"
+            title = item.get("title", str(item)) if isinstance(item, dict) else str(item)
+            md += f"- {impact_emoji} **{title}** ({item.get('date', '近期') if isinstance(item, dict) else '近期'}) [{item.get('source', 'macro') if isinstance(item, dict) else 'macro'}]\n"
+            summary = item.get("summary", "") if isinstance(item, dict) else ""
+            md += f"  {summary} **(影响: {impact})**\n"
+            llm_insight = "LLM已纳入决策（驱动基本面判断，影响持仓/趋势）" if any("新闻" in str(o) or "news" in str(o).lower() or "macro" in str(o).lower() for o in observations) else "LLM暂未深度分析/弃用（本次纯技术观望，未引用新闻作为决策依据）"
+            md += f"  **LLM理解/弃用**: {llm_insight}\n\n"
 
     # Enhanced sections with HTML for blog-like feel
     md += """<div style="background: #112233; padding: 15px; border-radius: 8px; margin-top: 20px;">
