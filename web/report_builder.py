@@ -49,7 +49,25 @@ def build_analysis_report(
         main_contradiction = obs.get("main_contradiction", "N/A")
         md += f"**核心矛盾与洞察**: {main_contradiction}\n\n"
 
-    # Enhanced sections with HTML for blog-like feel (news already inserted above)
+    # Extra Data + News (新增，放在多轮总结之后)
+    if extra_data:
+        md += "\n### 📈 Extra Data\n"
+        if extra_data.get("related_futures") or extra_data.get("related"):
+            md += f"- **Related Futures**: {len(extra_data.get('related_futures', extra_data.get('related', [])))} records\n"
+        if extra_data.get("technical_indicators"):
+            md += f"- **Technical Indicators**: {len(extra_data['technical_indicators'])} records\n"
+        if extra_data.get("holding"):
+            md += f"- **Holding Data**: {extra_data.get('holding', {}).get('total_brokers', 0)} brokers\n"
+
+    if news:
+        md += "\n### 📰 重要新闻与宏观驱动 (Top 5)\n"
+        for item in news[:5]:
+            impact = item.get("impact", "中")
+            impact_emoji = "🔴" if impact == "高" else "🟡"
+            md += f"- {impact_emoji} **{item.get('title', 'News')}** ({item.get('date', '近期')}) [{item.get('source', 'macro')}]\n"
+            md += f"  {item.get('summary', '')} **(影响: {impact})**\n\n"
+
+    # Enhanced sections with HTML for blog-like feel
     md += """<div style="background: #112233; padding: 15px; border-radius: 8px; margin-top: 20px;">
 
 ### ⚠️ 风险与问题
