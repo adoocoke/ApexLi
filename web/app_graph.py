@@ -62,10 +62,10 @@ with gr.Blocks() as demo:
         # 合约过滤 (新功能)
         exchange_filter = gr.Dropdown(["全部", "SHF", "DCE", "CZCE"], value="全部", label="交易所过滤")
         search_box = gr.Textbox(placeholder="搜索合约 (如 RB 或 I)", label="合约搜索")
-        popular_choices = get_popular_main_contracts()  # "中文 代码" format (fixed duplicate code e.g. no 'RB2610 RB2610.SHF')
+        popular_choices = get_popular_main_contracts()  # "中文 代码" format
         popular_menu = gr.Dropdown(
             choices=popular_choices,
-            value=popular_choices[0].split()[-1] if popular_choices else "RB2610.SHF",  # ts_code as value
+            value=popular_choices[0].split()[-1] if popular_choices else "RB2610.SHF",  # clean ts_code as value (extract before def)
             label="关注主力合约 (中文显示)",
             interactive=True
         )
@@ -121,8 +121,19 @@ with gr.Blocks() as demo:
     # 3. Dynamic related (reuse from nodes/data_gathering.py - now core EA dynamic)
     from eaagent.a_plus_plus.nodes.data_gathering import get_related_for_symbol
 
+    def extract_ts_code(display_value):
+        """Robust parser for Chinese '品种 代码' or '代码 代码' (fix for SA2609 SA2609.ZCE)"""
+        if not isinstance(display_value, str):
+            return display_value
+        # Handle 'SA2609 SA2609.ZCE' or '纯碱 SA2609.ZCE' - take last valid ts_code part
+        parts = display_value.strip().split()
+        for p in reversed(parts):
+            if '.' in p or any(c.isdigit() for c in p):  # ts_code pattern
+                return p
+        return display_value  # fallback
+
     btn.click(
-        fn=lambda sym, *args: run_analysis(extract_ts_code(sym) if 'extract_ts_code' in globals() else sym, *args),
+        fn=lambda sym, *args: run_analysis(extract_ts_code(sym), *args),
         inputs=[popular_menu, source, playbook, strategy],
         outputs=[console, main_plot, i_plot, j_plot]
     )
