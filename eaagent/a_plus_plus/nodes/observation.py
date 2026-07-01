@@ -44,8 +44,9 @@ def structured_observation(state: TAState) -> TAState:
 2. `playbook_references` 字段的每一项必须同时包含：
    - 规则完整标题
    - 当前市场情况如何匹配这条规则的具体解释（至少一句话）
+3. **data_requests** 中，如果需要相关品种日线，**symbols必须基于当前 {state['current_symbol']} 的强相关品种**（示例：RB→I2609.DCE/JM2609.DCE；SA→FG2609.CZC；AL→AG2609.SHF）。不要使用固定默认，必须动态匹配主品种。
 
-3. 输出必须严格遵守以下 JSON 格式（不要有多余文字）：
+4. 输出必须严格遵守以下 JSON 格式（不要有多余文字）：
 
 {{
   "phase": "当前所处阶段描述",
@@ -61,7 +62,7 @@ def structured_observation(state: TAState) -> TAState:
     "规则标题2：当前市场情况如何匹配这条规则的解释"
   ],
   "data_requests": [
-    {{"data_type": "...", "reason": "...", "priority": "high/low", "symbols": [...]}}
+    {{"data_type": "相关品种日线", "reason": "分析{state['current_symbol']}需要其高度相关的品种数据（如RB需要I/JM）", "priority": "high", "symbols": ["相关合约1", "相关合约2"]}}
   ]
 }}
 

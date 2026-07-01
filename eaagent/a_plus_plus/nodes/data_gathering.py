@@ -2,6 +2,21 @@ from eaagent.a_plus_plus.types import TAState
 from eaagent.a_plus_plus.utils.console import color_print, Colors
 from eaagent.tools.tushare_futures import get_related_futures_daily, get_futures_daily_with_ma
 
+# Move RELATED_MAP here for core EA (avoid web import in nodes)
+RELATED_MAP = {
+    "RB": ["I2609.DCE", "JM2609.DCE"], "I": ["J2609.DCE", "JM2609.DCE"],
+    "JM": ["J2609.DCE", "RB2610.SHF"], "J": ["JM2609.DCE", "I2609.DCE"],
+    "SA": ["FG2609.CZC"], "FG": ["SA2609.CZC"],
+    "AL": ["AG2609.SHF"], "AG": ["AL2610.SHF"],
+    "P": ["RM2609.CZC"], "CF": ["SR2609.CZC"],
+    "LC": ["AL2610.SHF"], "IC": ["IM2509.CFE"], "IM": ["IC2509.CFE"],
+}
+
+def get_related_for_symbol(symbol: str):
+    """Core dynamic related for EA (0-2 per main contract)"""
+    prefix = symbol.split(".")[0][:2] if "." in symbol else symbol[:2]
+    return RELATED_MAP.get(prefix, ["I2609.DCE", "J2609.DCE"][:2])
+
 
 def data_gathering(state: TAState) -> TAState:
     color_print(f"[第 {state['iteration']} 轮] 数据补充获取 (Data Gathering)", Colors.OKCYAN)
@@ -27,10 +42,13 @@ def data_gathering(state: TAState) -> TAState:
             color_print(f"    原因: {reason}", Colors.OKCYAN)
 
         if data_type == "相关品种日线":
-            symbols = req.get("symbols", ["I2609.DCE", "J2609.DCE", "JM2609.DCE"])
+            # Fully dynamic per current_symbol (no fixed fallback)
+            symbols = req.get("symbols", [])
+            if not symbols:  # LLM didn't provide or empty → use map
+                symbols = get_related_for_symbol(state.get("current_symbol", "RB2610.SHF"))
             df = get_related_futures_daily(symbols, months=3)
             state["extra_data"]["related_futures"] = df.to_dict("records") if not df.empty else []
-            color_print(f"    → 已获取相关品种数据 {len(state['extra_data'].get('related_futures', []))} 条", Colors.OKGREEN)
+            color_print(f"    → 已获取相关品种数据 {len(state['extra_data'].get('related_futures', []))} 条 for {state.get('current_symbol')} (symbols: {symbols})", Colors.OKGREEN)
 
         elif data_type == "技术指标":
             indicators = req.get("indicators", ["MA5", "MA13", "MA20"])

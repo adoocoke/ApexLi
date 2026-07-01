@@ -118,21 +118,8 @@ with gr.Blocks() as demo:
     popular_menu.change(fn=update_kline, inputs=popular_menu, outputs=main_plot)
     # all_menu removed - K-line only updates on popular change
 
-    # 3. Dynamic related varieties (0-2 per contract, hardcoded map for common correlations: RB->I/JM/HC, I->J/JM etc.)
-    RELATED_MAP = {
-        "RB": ["I2609.DCE", "JM2609.DCE"],  # 螺纹 -> 铁矿/焦煤
-        "I": ["J2609.DCE", "JM2609.DCE"],   # 铁矿 -> 焦炭/焦煤
-        "JM": ["J2609.DCE", "RB2610.SHF"],
-        "J": ["JM2609.DCE", "I2609.DCE"],
-        "SA": ["FG2609.CZC"], "FG": ["SA2609.CZC"],
-        "AL": ["AG2609.SHF"], "AG": ["AL2610.SHF"],
-        "P": ["RM2609.CZC"], "CF": ["SR2609.CZC"],
-    }
-
-    def get_related_for_symbol(symbol):
-        prefix = symbol.split('.')[0][:2] if '.' in symbol else symbol[:2]
-        related_codes = RELATED_MAP.get(prefix, ["I2609.DCE", "J2609.DCE"][:2])  # 0-2
-        return related_codes
+    # 3. Dynamic related (reuse from nodes/data_gathering.py - now core EA dynamic)
+    from eaagent.a_plus_plus.nodes.data_gathering import get_related_for_symbol
 
     btn.click(
         fn=lambda sym, *args: run_analysis(extract_ts_code(sym) if 'extract_ts_code' in globals() else sym, *args),
