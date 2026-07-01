@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 ReAct Agent - 基于 Grok (xAI) 的完整实现
 包含 Memory + 自动记忆 + 多方式安全读取 API Key（A计划）
@@ -22,14 +23,14 @@ except ImportError:
 class ReActAgent:
     def __init__(
         self,
-        model: str = "grok-4.3",
-        api_key: Optional[str] = None,
-        base_url: str = "https://api.x.ai/v1",
-        temperature: float = 0.7,
-        max_steps: int = 15,
-        verbose: bool = True,
-        require_api_key: bool = True,
-        auto_memory: bool = False,
+        model="grok-4.3",
+        api_key=None,
+        base_url="https://api.x.ai/v1",
+        temperature=0.7,
+        max_steps=15,
+        verbose=True,
+        require_api_key=True,
+        auto_memory=False,
     ):
         self.model = model
         self.temperature = temperature
@@ -48,11 +49,11 @@ class ReActAgent:
         else:
             self.client = None  # 测试模式
 
-        self.tools: List[Dict] = []
-        self.tool_functions: Dict[str, Callable] = {}
-        self.memory: Dict[str, str] = {}
+        self.tools = []
+        self.tool_functions = {}
+        self.memory = {}
 
-    def _get_api_key(self, provided_key: Optional[str] = None) -> Optional[str]:
+    def _get_api_key(self, provided_key=None):
         """多优先级读取 API Key"""
         if provided_key:
             return provided_key
@@ -77,7 +78,7 @@ class ReActAgent:
 
         return None
 
-    def add_tool(self, name: str, description: str, parameters: Dict, function: Callable):
+    def add_tool(self, name, description, parameters, function):
         tool_def = {
             "type": "function",
             "function": {
@@ -89,31 +90,31 @@ class ReActAgent:
         self.tools.append(tool_def)
         self.tool_functions[name] = function
         if self.verbose:
-            print(f"[Agent] 已注册工具: {name}")
+            print("[Agent] 已注册工具: " + str(name))
 
-    def remember(self, key: str, value: str):
+    def remember(self, key, value):
         """记住重要事实"""
         self.memory[key] = value
         if self.verbose:
-            print(f"[Memory] 已记住: {key} = {value}")
+            print("[Memory] 已记住: " + str(key) + " = " + str(value))
 
-    def recall(self, key: str = None):
+    def recall(self, key=None):
         """取出记忆"""
         if key:
             return self.memory.get(key, "")
         return self.memory.copy()
 
-    def _extract_and_store_memory(self, goal: str, final_answer: str):
+    def _extract_and_store_memory(self, goal, final_answer):
         """自动提取关键事实并存入记忆"""
         if not self.client or not self.auto_memory:
             return
 
-        prompt = f"""请从以下对话中提取1-3条最重要的关键事实，用简洁的 key: value 格式输出：
+        prompt = """请从以下对话中提取1-3条最重要的关键事实，用简洁的 key: value 格式输出：
 
 用户问题: {goal}
 最终答案: {final_answer}
 
-只输出事实，不要解释。"""
+只输出事实，不要解释。""".format(goal=goal, final_answer=final_answer)
 
         try:
             response = self.client.chat.completions.create(
@@ -130,28 +131,28 @@ class ReActAgent:
                     self.remember(k.strip(), v.strip())
 
             if self.verbose and any(self.memory):
-                print(f"[Auto Memory] 已自动提取 {len(self.memory)} 条记忆")
+                print("[Auto Memory] 已自动提取 " + str(len(self.memory)) + " 条记忆")
 
         except Exception as e:
             if self.verbose:
-                print(f"[Auto Memory] 提取失败: {e}")
+                print("[Auto Memory] 提取失败: " + str(e))
 
     def _execute_tool(self, tool_call):
         name = tool_call.function.name
         args = json.loads(tool_call.function.arguments or "{}")
         if name not in self.tool_functions:
-            return f"错误：未知工具 {name}"
+            return "错误：未知工具 " + str(name)
         try:
             return str(self.tool_functions[name](**args))
         except Exception as e:
-            return f"工具执行出错: {str(e)}"
+            return "工具执行出错: " + str(e)
 
-    def run(self, goal: str) -> str:
+    def run(self, goal):
         # 注入记忆到 System Prompt
         memory_content = ""
         if self.memory:
             memory_content = "\n当前已知记忆：\n" + "\n".join(
-                [f"- {k}: {v}" for k, v in self.memory.items()]
+                ["- " + str(k) + ": " + str(v) for k, v in self.memory.items()]
             )
 
         messages = [
@@ -161,7 +162,7 @@ class ReActAgent:
                     "你是一个严谨的 ReAct 助手（powered by Grok）。\n"
                     "请严格遵循 ReAct 格式：Thought → Action → Observation → Answer。\n"
                     "只有信息足够时才给出最终答案。"
-                    f"{memory_content}"
+                    + str(memory_content)
                 ),
             },
             {"role": "user", "content": goal},
@@ -169,7 +170,7 @@ class ReActAgent:
 
         for step in range(1, self.max_steps + 1):
             if self.verbose:
-                print(f"\n=== Step {step} ===")
+                print("\n=== Step " + str(step) + " ===")
 
             if self.client is None:
                 return "测试模式：未实际调用 API"
@@ -187,12 +188,13 @@ class ReActAgent:
 
             if assistant_msg.tool_calls:
                 if self.verbose:
-                    print(f"调用工具: {[tc.function.name for tc in assistant_msg.tool_calls]}")
+                    tool_names = [tc.function.name for tc in assistant_msg.tool_calls]
+                    print("调用工具: " + str(tool_names))
 
                 for tool_call in assistant_msg.tool_calls:
                     result = self._execute_tool(tool_call)
                     if self.verbose:
-                        print(f"工具返回: {result[:200]}...")
+                        print("工具返回: " + str(result[:200]) + "...")
 
                     messages.append({
                         "role": "tool",
@@ -208,10 +210,10 @@ class ReActAgent:
                     self._extract_and_store_memory(goal, final_answer)
 
                 if self.verbose:
-                    print(f"\n✅ 最终答案:\n{final_answer}")
+                    print("\n✅ 最终答案:\n" + str(final_answer))
                 return final_answer
 
         return "达到最大步数限制"
 
-    def chat(self, goal: str) -> str:
+    def chat(self, goal):
         return self.run(goal)

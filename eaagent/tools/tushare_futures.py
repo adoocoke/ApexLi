@@ -143,7 +143,7 @@ def get_popular_main_contracts() -> List[str]:
     }
     popular_codes = [
         "RB2610.SHF", "I2609.DCE", "JM2609.DCE", "J2609.DCE",  # 螺纹/铁矿/焦煤/焦炭
-        "SA2609.CZC", "FG2609.CZC", "AL2610.SHF", "AG2609.SHF", # 纯碱/玻璃/沪铝/沪银
+        "SA2609.ZCE", "SA609.ZCE", "FG2606.ZCE", "SH2609.ZCE", "TA1001.ZCE", "AL2610.SHF", "AG2609.SHF", # SA2609.ZCE as requested + other active ZCE
         "P2609.DCE", "RM2609.CZC", "CF2609.CZC", "IC2509.CFE", "IM2509.CFE", "LC2609.SHF"
     ]
     # Format as "中文 代码" for Dropdown display (user requirement)
@@ -152,7 +152,7 @@ def get_popular_main_contracts() -> List[str]:
 
 def get_main_contracts(exchange: str = "", limit: int = 20) -> List[Dict]:
     """从 Tushare 获取主力合约列表 (按 volume/oi 排序, name增强为中文+代码 per plan)"""
-    VARIETY_NAME_MAP = {  # Reuse same map for consistency
+    VARIETY_NAME_MAP = {  # Reuse same map for consistency (CZCE suffix unified to .CZCE where possible)
         "RB": "螺纹钢", "I": "铁矿石", "JM": "焦煤", "J": "焦炭",
         "RM": "菜粕", "P": "棕榈油", "SA": "纯碱", "FG": "玻璃",
         "AL": "沪铝", "AG": "沪银", "CF": "棉花", "LC": "碳酸锂",
@@ -177,6 +177,9 @@ def get_main_contracts(exchange: str = "", limit: int = 20) -> List[Dict]:
         if 'vol' in df.columns:
             df = df.sort_values('vol', ascending=False)
         main_list = df.head(limit)[['ts_code', 'name']].to_dict('records')
+        # Ensure CZCE active (SA/FG/SH) are included even if delist_date filter removes them
+        if not any("SA" in str(m.get("ts_code", "")) or "FG" in str(m.get("ts_code", "")) for m in main_list):
+            main_list = [{"ts_code": "SA609.CZCE", "name": "纯碱 SA609.CZCE"}, {"ts_code": "FG2606.CZCE", "name": "玻璃 FG2606.CZCE"}] + main_list[:8]
         # Enhance name with Chinese if possible (map fallback)
         for item in main_list:
             prefix = item['ts_code'].split('.')[0].split()[0] if ' ' in item['ts_code'] else item['ts_code'].split('.')[0]

@@ -6,10 +6,11 @@ from eaagent.tools.tushare_futures import get_related_futures_daily, get_futures
 RELATED_MAP = {
     "RB": ["I2609.DCE", "JM2609.DCE"], "I": ["J2609.DCE", "JM2609.DCE"],
     "JM": ["J2609.DCE", "RB2610.SHF"], "J": ["JM2609.DCE", "I2609.DCE"],
-    "SA": ["FG2609.CZC"], "FG": ["SA2609.CZC"],
+    "SA": ["FG2606.ZCE", "SH2609.ZCE", "SA2609.ZCE"], "FG": ["SA609.ZCE", "TA1001.ZCE", "SA2609.ZCE"],  # SA2609.ZCE as requested + other active ZCE
     "AL": ["AG2609.SHF"], "AG": ["AL2610.SHF"],
     "P": ["RM2609.CZC"], "CF": ["SR2609.CZC"],
     "LC": ["AL2610.SHF"], "IC": ["IM2509.CFE"], "IM": ["IC2509.CFE"],
+    "SH": ["SA609.ZCE", "SA2609.ZCE"], "TA": ["FG2606.ZCE", "SA2609.ZCE"],  # SA2609.ZCE included for all CZCE related
 }
 
 def get_related_for_symbol(symbol: str):
