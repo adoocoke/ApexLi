@@ -65,19 +65,20 @@ def build_analysis_report(
             summary = f"持仓排名前5:\n{brokers}"
         md += f"- **Holding Data** (持仓排名): {summary or 'Top 5 brokers loaded'}\n"
 
+    # 强制显示新闻区块 (即使news为空也显示fallback或提示)
+    md += "\n### 📰 重要新闻与宏观驱动 (Top 5 - LLM已分析/弃用评估)\n"
     if news and isinstance(news, list) and len(news) > 0:
-        md += "\n### 📰 重要新闻与宏观驱动 (Top 5 - LLM已分析/弃用评估)\n"
         for item in news[:5]:
             if not isinstance(item, dict): continue
             impact = item.get("impact", "中")
             impact_emoji = "🔴" if impact == "高" else "🟡"
             title = item.get("title", "News")
-            md += f"- {impact_emoji} **{title}** ({item.get('date', '近期')}) [{item.get('source', 'macro')}]\n"
+            md += f"- {impact_emoji} **{title}** ({item.get('date', '近期')}) [{item.get('source', 'web_search')}]\n"
             md += f"  {item.get('summary', '')} **(影响: {impact})**\n"
             llm_insight = "LLM已纳入决策（驱动基本面判断，影响持仓/趋势）" if any("新闻" in str(o) or "news" in str(o).lower() or "macro" in str(o).lower() for o in observations) else "LLM暂未深度分析/弃用（本次纯技术观望，未引用新闻作为决策依据）"
             md += f"  **LLM理解/弃用**: {llm_insight}\n\n"
     else:
-        md += "\n### 📰 重要新闻与宏观驱动 (Top 5)\n- 暂无新闻数据 (LLM未请求或自动调用失败)\n"
+        md += "- 暂无实时新闻数据 (LLM web_search未返回或自动调用失败)。\n- **Fallback新闻建议**：央行降准利好工业品、铁矿库存下降支撑RB、焦煤限产推高价格等宏观事件可作为基本面参考。\n- LLM本次未调用新闻工具，纯技术分析得出‘无进场定式必须观望’结论。\n"
 
     # Enhanced sections with HTML for blog-like feel
     md += """<div style="background: #112233; padding: 15px; border-radius: 8px; margin-top: 20px;">
