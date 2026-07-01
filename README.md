@@ -164,13 +164,14 @@ MIT
 
 ---
 
-**最近进展 (EA-001~EA-005 + 新功能)**
+**最近进展 (EA-001~EA-005 + Web + Tools + Report)**
 
-- **EA-001/002**：结构化 `playbook_references` + 强 "引用XX规则：" reason。
-- **EA-003/004**：早停问题解决 — zen/v3 稳定运行 2-3+ 轮。
-- **EA-005**：报告新增「多轮路径总结」、「关键规则一览」、「决策依据」 — 可解释性大幅提升。
-- **新功能**：Web菜单支持**中文品种名+合约**（螺纹钢 RB、铁矿石 I、纯碱 SA、玻璃 FG、沪铝 AL 等关注主力及其相关），集成过滤/搜索/动态K线/相关品种Tab。
+- **EA-001~EA-005**：完成质量提升计划（结构化`playbook_references` + "引用XX规则："强reason + quality_sensor软单观测 + LLM Critique早停优化 + 多轮路径总结/关键规则一览/最终决策依据）。
+- **Web UI**：中文主力合约菜单（螺纹钢 RB2610.SHF、铁矿石 I2609.DCE、纯碱 SA2609.ZCE、焦煤 JM、焦炭 J、玻璃 FG 等关注品种及其相关），支持交易所过滤、搜索、Strategy切换、动态K线 + 相关品种独立Tabs、可拖拽50%宽度报告控制台（富文本Blog风格，高度680px匹配K线）。
+- **LLM Tools**（5个，已注册）：`get_futures_holding`（持仓排名）、`get_futures_basic`（合约信息）、`get_related_futures_dynamic`（相关品种）、`generate_kline_chart`（K线）、**`get_futures_news`**（实时网络搜索5条重要新闻/宏观政策，fallback mock）。Prompt明确使用理由（news用于基本面驱动、holding用于仓位博弈、basic用于合约规格）。
+- **报告优化**：Extra Data（详细Holding broker/vol）+ **📰 重要新闻区块**（5条 + LLM理解/弃用说明：“已纳入决策”或“暂未深度分析/弃用”） + 多轮总结/规则引用/决策依据。强制多轮（<4轮始终继续）。
+- **其他**：动态RELATED_MAP（RB→I/JM等）、CZCE/SA数据修复、Test-First（pytest全通过）、AGENTS.md严格遵循（Orient-Clarify-Slice-Check-TDD-Verify-Reflect，每步commit/push）。
 
-**整体质量**：从 42-72% 提升至 85%+，Web 体验显著改善。系统更透明、可观测、可迭代。
+**整体质量**：从早期42-72%提升至85%+，Web体验、透明度、可解释性大幅改善。LLM可自主调用工具，报告完整展示工具调用结果 + 分析逻辑。
 
 *Built for transparency. Maintained with ❤️ by the ApexLi team.*
