@@ -76,18 +76,23 @@ with gr.Blocks() as demo:
     btn = gr.Button("开始完整分析 (EA)", variant="primary")
 
     with gr.Row():
-        console = gr.Markdown(label="📜 分析过程 (多轮路径+规则引用+决策依据)", value="**等待分析...**", height=680, show_label=True)
+        console = gr.Markdown(
+            label="📜 分析过程 (多轮路径+规则引用+决策依据, 富文本Blog风格)",
+            value="**等待分析...** (选择合约后点击'开始完整分析')",
+            height=680,
+            show_label=True
+        )
         with gr.Column(scale=6):
             with gr.Tabs():
                 with gr.Tab("当前合约 K线"):
                     main_plot = gr.Plot()
-                with gr.Tab("相关品种 K线 (0-2个动态, 分析后更新)"):
-                    with gr.Row():
-                        with gr.Column():
-                            i_markdown = gr.Markdown("**相关1**")
+                with gr.Tab("相关品种 K线 (每个品种独立Tab, 避免挤在一起)"):
+                    with gr.Tabs():
+                        with gr.Tab("相关1"):
+                            i_markdown = gr.Markdown("**相关品种1**")
                             i_plot = gr.Plot()
-                        with gr.Column():
-                            j_markdown = gr.Markdown("**相关2**")
+                        with gr.Tab("相关2"):
+                            j_markdown = gr.Markdown("**相关品种2**")
                             j_plot = gr.Plot()
 
     # 合约过滤 + 搜索功能 (新, 不再依赖all_menu)

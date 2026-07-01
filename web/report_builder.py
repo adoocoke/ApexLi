@@ -18,7 +18,9 @@ def build_analysis_report(
     critique_result = final_state.get("critique_result", {})
     sensor_suggestion = final_state.get("sensor_suggestion", {})
 
-    md = f"""**{symbol} 技术分析报告** (共 {rounds} 轮 | 数据源: {data_source})
+    md = f"""<div style="font-family: system-ui; background: #1a1a1a; padding: 15px; border-radius: 8px; color: #eee;">
+
+**{symbol} 技术分析报告** (共 {rounds} 轮 | 数据源: {data_source})
 
 **最终交易信号**
 ```json
@@ -69,5 +71,5 @@ def build_analysis_report(
         if critique_result.get("reason"):
             md += f"- **原因**: {critique_result['reason']}\n"
 
-    md += "\n---\n*报告由EA Agent生成 | 基于多轮结构化观察 + Playbook*"
+    md += "\n---\n*报告由EA Agent生成 | 基于多轮结构化观察 + Playbook*</div>"
     return md
