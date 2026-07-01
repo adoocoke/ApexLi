@@ -80,9 +80,10 @@ with gr.Blocks() as demo:
             label="📜 分析过程 (多轮路径+规则引用+决策依据, 富文本Blog风格)",
             value="**等待分析...** (选择合约后点击'开始完整分析')",
             height=680,
-            show_label=True
+            show_label=True,
+            scale=1  # 50% width for report console
         )
-        with gr.Column(scale=6, min_width=400):  # Allow drag to resize left/right (Gradio Row supports resizing with scale + min_width)
+        with gr.Column(scale=1, min_width=400):  # K-line side, resizable via drag on middle line (balanced 50/50)
             with gr.Tabs():
                 with gr.Tab("当前合约 K线"):
                     main_plot = gr.Plot()

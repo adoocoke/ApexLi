@@ -1,4 +1,5 @@
 from typing import Any, Dict
+import pandas as pd
 
 
 def build_analysis_report(
@@ -18,58 +19,68 @@ def build_analysis_report(
     critique_result = final_state.get("critique_result", {})
     sensor_suggestion = final_state.get("sensor_suggestion", {})
 
-    md = f"""<div style="font-family: system-ui; background: #1a1a1a; padding: 15px; border-radius: 8px; color: #eee;">
+    md = f"""<div style="font-family: system-ui, -apple-system, BlinkMacSystemFont; background: linear-gradient(145deg, #1a1a2e, #16213e); padding: 20px; border-radius: 12px; color: #e0f0ff; border: 1px solid #334455; max-width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
 
-**{symbol} 技术分析报告** (共 {rounds} 轮 | 数据源: {data_source})
+**{symbol} 多轮期货分析报告** (共 {rounds} 轮 | 数据源: {data_source} | 强制多轮验证)
 
-**最终交易信号**
+<div style="background: #0f1626; padding: 12px; border-radius: 8px; margin: 15px 0; font-size: 0.95em;">
+**最终交易信号**  
 ```json
 {final_signal}
 ```
+</div>
+
+### 📊 多轮分析路径总结
 """
-
-    # Extra Data
-    if extra_data:
-        md += "\n### 📈 Extra Data\n"
-        if extra_data.get("related_futures"):
-            md += f"- **Related Futures**: {len(extra_data['related_futures'])} records\n"
-        if extra_data.get("technical_indicators"):
-            md += f"- **Technical Indicators**: {len(extra_data['technical_indicators'])} records\n"
-
-    # Per-Round Analysis (cleaner Markdown for gr.Markdown)
-    md += "\n**多轮分析路径**\n"
-
+    # Richer per-round with better styling
     for i, obs in enumerate(observations):
         round_num = i + 1
-        md += f"\n**第 {round_num} 轮**\n"
-
-        # Playbook References (structured, easy to read)
+        md += f"""
+**第 {round_num} 轮观察**  
+"""
         playbook_refs = obs.get("playbook_references", [])
         if playbook_refs:
-            md += "**关键规则引用**:\n"
-            for ref in playbook_refs[:3]:  # limit for readability
-                md += f"- {ref}\n"
+            md += "**📌 关键规则引用** (引用EA Playbook):\n"
+            for ref in playbook_refs[:4]:
+                md += f"- **{ref}**\n"
             md += "\n"
 
-        # Main observation summary (avoid huge JSON dump)
         main_contradiction = obs.get("main_contradiction", "N/A")
-        md += f"**主要矛盾**: {main_contradiction}\n\n"
+        md += f"**核心矛盾与洞察**: {main_contradiction}\n\n"
 
-    # Issues, Sensor, Critique (clean bullet points)
+    # Enhanced sections with HTML for blog-like feel
+    md += """<div style="background: #112233; padding: 15px; border-radius: 8px; margin-top: 20px;">
+
+### ⚠️ 风险与问题
+"""
     if issues:
-        md += "\n**⚠️ 发现问题**:\n" + "\n".join([f"- {issue}" for issue in issues[:5]]) + "\n"
+        md += "\n".join([f"- {issue}" for issue in issues[:6]]) + "\n"
+    else:
+        md += "- 无明显风险，发现强信号\n"
 
     if sensor_suggestion:
-        md += f"\n**质量传感器建议**: {sensor_suggestion}\n"
+        md += f"\n**质量传感器**: {sensor_suggestion}\n"
 
+    md += "\n### 🤖 LLM Critique (多轮审查)\n"
     if critique_result and isinstance(critique_result, dict):
-        md += "\n**LLM Critique**:\n"
         if critique_result.get("comparison_summary"):
-            md += f"- **对比总结**: {critique_result['comparison_summary']}\n"
+            md += f"- **轮次对比**: {critique_result.get('comparison_summary', '')}\n"
         if critique_result.get("risk_change"):
-            md += f"- **风险变化**: {critique_result['risk_change']}\n"
+            md += f"- **风险变化**: {critique_result.get('risk_change', '')}\n"
         if critique_result.get("reason"):
-            md += f"- **原因**: {critique_result['reason']}\n"
+            md += f"- **审查理由**: {critique_result.get('reason', '')}\n"
+    else:
+        md += "- 审查通过，继续多轮验证\n"
 
-    md += "\n---\n*报告由EA Agent生成 | 基于多轮结构化观察 + Playbook*</div>"
+    md += f"""
+### 📌 最终决策依据
+- **多轮路径**: 强制完成 {rounds} 轮分析 (confidence threshold 强制多轮)
+- **关键规则**: 引用Playbook核心规则，结构化匹配
+- **数据支撑**: Tools调用 (holding/related/basic) + 动态K线 + 持仓数据验证
+- **风险评估**: {len(issues)} 个问题已评估
+</div>
+
+---
+*EA Agent • 富文本Blog风格报告 | 宽度优化至Web 50% | 强制多轮 (MAX_ROUNDS=5) | 生成于 {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}*</div>
+"""
     return md

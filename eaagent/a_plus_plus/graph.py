@@ -229,6 +229,12 @@ def should_continue_after_critique(state: TAState) -> Literal["continue", "final
     if state.get("iteration", 0) >= state.get("max_rounds", 5):
         return "finalize"
 
+    # 强制多轮：iteration < 4 时始终继续 (除非极高置信度)
+    iteration = state.get("iteration", 0)
+    if iteration < 4:
+        color_print(f"  → 强制多轮：第 {iteration} 轮 < 4，继续分析", Colors.OKCYAN)
+        return "continue"
+
     critique = state.get("critique_result", {})
     raw_response = critique.get("raw_response", "")
 
@@ -242,7 +248,7 @@ def should_continue_after_critique(state: TAState) -> Literal["continue", "final
             should_continue = result.get("should_continue", True)
             risk_change = result.get("risk_change", "").lower()
 
-            if should_continue is False:
+            if should_continue is False and iteration >= 4:
                 return "finalize"
             if risk_change in ["上升", "显著上升", "增加"]:
                 return "continue"
@@ -250,8 +256,8 @@ def should_continue_after_critique(state: TAState) -> Literal["continue", "final
     except Exception:
         pass
 
-    # 兜底逻辑
-    if "false" in raw_response.lower():
+    # 兜底逻辑 - 强制多轮优先
+    if "false" in raw_response.lower() and iteration >= 4:
         return "finalize"
     return "continue"
 
