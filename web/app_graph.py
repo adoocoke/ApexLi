@@ -82,11 +82,11 @@ with gr.Blocks() as demo:
             height=680,
             show_label=True
         )
-        with gr.Column(scale=6):
+        with gr.Column(scale=6, min_width=400):  # Allow drag to resize left/right (Gradio Row supports resizing with scale + min_width)
             with gr.Tabs():
                 with gr.Tab("当前合约 K线"):
                     main_plot = gr.Plot()
-                with gr.Tab("相关品种 K线 (每个品种独立Tab, 避免挤在一起)"):
+                with gr.Tab("相关品种 K线 (每个品种独立Tab)"):
                     with gr.Tabs():
                         with gr.Tab("相关1"):
                             i_markdown = gr.Markdown("**相关品种1**")
