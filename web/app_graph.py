@@ -61,10 +61,12 @@ with gr.Blocks() as demo:
         # 合约过滤 (新功能)
         exchange_filter = gr.Dropdown(["全部", "SHF", "DCE", "CZCE"], value="全部", label="交易所过滤")
         search_box = gr.Textbox(placeholder="搜索合约 (如 RB 或 I)", label="合约搜索")
-        popular_choices = get_popular_main_contracts()  # "中文 代码" format
+        popular_choices = get_popular_main_contracts()  # "中文 代码" format, e.g. "螺纹钢 RB2610.SHF"
+        # Extract clean ts_code for initial value to avoid "value not in choices" warning
+        initial_value = popular_choices[0].split()[-1] if popular_choices else "RB2610.SHF"
         popular_menu = gr.Dropdown(
             choices=popular_choices,
-            value=popular_choices[0].split()[-1] if popular_choices else "RB2610.SHF",  # clean ts_code as value (extract before def)
+            value=initial_value,  # Must match one of the choice strings exactly (full "中文 代码")
             label="关注主力合约 (中文显示)",
             interactive=True
         )
@@ -80,10 +82,9 @@ with gr.Blocks() as demo:
             label="📜 分析过程 (多轮路径+规则引用+决策依据, 富文本Blog风格)",
             value="**等待分析...** (选择合约后点击'开始完整分析')",
             height=680,
-            show_label=True,
-            scale=1  # 50% width for report console
+            show_label=True
         )
-        with gr.Column(scale=1, min_width=400):  # K-line side, resizable via drag on middle line (balanced 50/50)
+        with gr.Column(scale=1, min_width=400):  # K-line side ~50%, resizable via drag on middle line (Gradio Row + scale)
             with gr.Tabs():
                 with gr.Tab("当前合约 K线"):
                     main_plot = gr.Plot()
@@ -120,7 +121,11 @@ with gr.Blocks() as demo:
         chart = create_candlestick_chart(df, symbol)
         return chart
 
-    popular_menu.change(fn=update_kline, inputs=popular_menu, outputs=main_plot)
+    popular_menu.change(
+        fn=update_kline,
+        inputs=[popular_menu],
+        outputs=main_plot
+    )
     # all_menu removed - K-line only updates on popular change
 
     # 3. Dynamic related (reuse from nodes/data_gathering.py - now core EA dynamic)
@@ -140,7 +145,7 @@ with gr.Blocks() as demo:
     btn.click(
         fn=lambda sym, *args: run_analysis(extract_ts_code(sym), *args),
         inputs=[popular_menu, source, playbook, strategy],
-        outputs=[console, main_plot, i_plot, j_plot]  # console now Markdown (full report, height=680)
+        outputs=[console, main_plot, i_plot, j_plot]  # console Markdown (rich 50% report), plots
     )
 
 if __name__ == "__main__":
