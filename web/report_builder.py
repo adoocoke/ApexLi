@@ -18,13 +18,9 @@ def build_analysis_report(
     critique_result = final_state.get("critique_result", {})
     sensor_suggestion = final_state.get("sensor_suggestion", {})
 
-    md = f"""## 📊 Analysis Summary
+    md = f"""**{symbol} 技术分析报告** (共 {rounds} 轮 | 数据源: {data_source})
 
-- **Symbol**: `{symbol}`
-- **Data Source**: {data_source}
-- **Total Rounds**: {rounds}
-
-### Final Trading Signal
+**最终交易信号**
 ```json
 {final_signal}
 ```
@@ -38,45 +34,40 @@ def build_analysis_report(
         if extra_data.get("technical_indicators"):
             md += f"- **Technical Indicators**: {len(extra_data['technical_indicators'])} records\n"
 
-    # Per-Round Analysis
-    md += "\n## 🔄 Per-Round Analysis\n"
+    # Per-Round Analysis (cleaner Markdown for gr.Markdown)
+    md += "\n**多轮分析路径**\n"
 
     for i, obs in enumerate(observations):
         round_num = i + 1
-        md += f"\n### Round {round_num}\n"
+        md += f"\n**第 {round_num} 轮**\n"
 
-        # Playbook References
+        # Playbook References (structured, easy to read)
         playbook_refs = obs.get("playbook_references", [])
         if playbook_refs:
-            md += "**📖 Playbook References**:\n"
-            for ref in playbook_refs:
-                md += f"- `{ref}`\n"
+            md += "**关键规则引用**:\n"
+            for ref in playbook_refs[:3]:  # limit for readability
+                md += f"- {ref}\n"
             md += "\n"
 
-        # Observation (截断处理，避免过长导致格式混乱)
-        obs_str = str(obs)
-        if len(obs_str) > 2200:
-            truncated = obs_str[:2200] + "\n...(truncated)"
-        else:
-            truncated = obs_str
-        md += f"**Observation**:\n```json\n{truncated}\n```\n"
+        # Main observation summary (avoid huge JSON dump)
+        main_contradiction = obs.get("main_contradiction", "N/A")
+        md += f"**主要矛盾**: {main_contradiction}\n\n"
 
-    # 最后一轮 Issues
+    # Issues, Sensor, Critique (clean bullet points)
     if issues:
-        md += "\n### ⚠️ Issues (Latest Round)\n```json\n" + str(issues) + "\n```\n"
+        md += "\n**⚠️ 发现问题**:\n" + "\n".join([f"- {issue}" for issue in issues[:5]]) + "\n"
 
-    # Sensor Suggestion
     if sensor_suggestion:
-        md += "\n### 🔍 Sensor Suggestion\n```json\n" + str(sensor_suggestion) + "\n```\n"
+        md += f"\n**质量传感器建议**: {sensor_suggestion}\n"
 
-    # LLM Critique
-    if critique_result:
-        md += "\n### 🧠 LLM Critique\n```json\n" + str(critique_result) + "\n```\n"
+    if critique_result and isinstance(critique_result, dict):
+        md += "\n**LLM Critique**:\n"
+        if critique_result.get("comparison_summary"):
+            md += f"- **对比总结**: {critique_result['comparison_summary']}\n"
+        if critique_result.get("risk_change"):
+            md += f"- **风险变化**: {critique_result['risk_change']}\n"
+        if critique_result.get("reason"):
+            md += f"- **原因**: {critique_result['reason']}\n"
 
-        if isinstance(critique_result, dict):
-            if critique_result.get("comparison_summary"):
-                md += f"\n**Comparison Summary**: {critique_result['comparison_summary']}\n"
-            if critique_result.get("risk_change"):
-                md += f"**Risk Change**: `{critique_result['risk_change']}`\n"
-
+    md += "\n---\n*报告由EA Agent生成 | 基于多轮结构化观察 + Playbook*"
     return md

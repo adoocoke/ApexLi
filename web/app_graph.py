@@ -49,11 +49,10 @@ def run_analysis(symbol, data_source, playbook_name, strategy_name="full"):
     i_chart = related_charts[0] if related_charts else None
     j_chart = related_charts[1] if len(related_charts) > 1 else None
 
-    # 1. 真实分析过程 (report_builder填充console)
+    # 1. 真实分析过程 (report_builder Markdown 直接返回给 gr.Markdown, 高度匹配K线680px)
     console_text = build_analysis_report(final_state, symbol, data_source)
-    result_text = f"✅ {name} 分析完成 | 方向: {signal.get('direction', 'N/A')}\n\n{console_text[:1000]}..."
-
-    return result_text, main_chart, i_chart or main_chart, j_chart or main_chart
+    # 保持Markdown格式 (gr.Markdown支持 ##, ```, ** 等, 比Textbox美观)
+    return console_text, main_chart, i_chart or main_chart, j_chart or main_chart
 
 with gr.Blocks() as demo:
     gr.Markdown("# ApexLi • 期货主力合约菜单 + 动态 K线 (带过滤)")
@@ -77,7 +76,7 @@ with gr.Blocks() as demo:
     btn = gr.Button("开始完整分析 (EA)", variant="primary")
 
     with gr.Row():
-        console = gr.Textbox(label="📜 分析过程 (多轮路径+规则引用+决策依据)", lines=12, scale=4)
+        console = gr.Markdown(label="📜 分析过程 (多轮路径+规则引用+决策依据)", value="**等待分析...**", height=680, show_label=True)
         with gr.Column(scale=6):
             with gr.Tabs():
                 with gr.Tab("当前合约 K线"):
@@ -135,7 +134,7 @@ with gr.Blocks() as demo:
     btn.click(
         fn=lambda sym, *args: run_analysis(extract_ts_code(sym), *args),
         inputs=[popular_menu, source, playbook, strategy],
-        outputs=[console, main_plot, i_plot, j_plot]
+        outputs=[console, main_plot, i_plot, j_plot]  # console now Markdown (full report, height=680)
     )
 
 if __name__ == "__main__":
