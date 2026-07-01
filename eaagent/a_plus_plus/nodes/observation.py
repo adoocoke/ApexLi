@@ -44,7 +44,7 @@ def structured_observation(state: TAState) -> TAState:
 2. `playbook_references` 字段的每一项必须同时包含：
    - 规则完整标题
    - 当前市场情况如何匹配这条规则的具体解释（至少一句话）
-3. **data_requests** 中，如果需要相关品种日线，**symbols必须基于当前 {state['current_symbol']} 的强相关品种**（示例：RB→I2609.DCE/JM2609.DCE；SA→FG2609.CZC；AL→AG2609.SHF）。不要使用固定默认，必须动态匹配主品种。
+3. **工具调用**：如果需要额外期货数据（如持仓排名、相关合约主力、结算价），使用工具调用 (get_futures_holding, get_futures_basic, get_related_futures_dynamic 等)。可用工具已注册 (15000积分覆盖, doc_id=290 fut_holding)。如果工具缺失，输出 "NEED_TOOL: tool_name (reason)"。
 
 4. 输出必须严格遵守以下 JSON 格式（不要有多余文字）：
 

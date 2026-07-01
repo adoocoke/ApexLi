@@ -31,18 +31,20 @@ class TestFuturesAPIs:
             print(f"⚠️ fut_daily 返回为空，合约: RB2609.SHF, 日期: {start_date} ~ {end_date}")
 
     def test_fut_holding(self, tushare_pro):
-        """测试每日成交持仓排名"""
-        df = tushare_pro.fut_holding(trade_date='20250410')
+        """测试每日成交持仓排名 (doc_id=290, for SA2609.ZCE)"""
+        df = tushare_pro.fut_holding(ts_code='SA2609.ZCE', trade_date='20250601')
         assert isinstance(df, pd.DataFrame)
+        if df.empty:
+            print("⚠️ fut_holding 返回为空 (可能日期或权限, 测试动态调用)")
 
     def test_fut_wsr(self, tushare_pro):
         """测试仓单日报"""
-        df = tushare_pro.fut_wsr(trade_date='20250410')
+        df = tushare_pro.fut_wsr(trade_date='20250601')
         assert isinstance(df, pd.DataFrame)
 
     def test_fut_settle(self, tushare_pro):
-        """测试结算参数"""
-        df = tushare_pro.fut_settle(trade_date='20250410')
+        """测试结算参数 (for SA2609.ZCE)"""
+        df = tushare_pro.fut_settle(ts_code='SA2609.ZCE', start_date='20250601', end_date='20250630')
         assert isinstance(df, pd.DataFrame)
 
     def test_trade_cal(self, tushare_pro):

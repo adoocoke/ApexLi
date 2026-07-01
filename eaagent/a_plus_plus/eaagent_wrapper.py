@@ -10,10 +10,11 @@ class APlusPlusReActAgent(ReActAgent):
         super().__init__(**kwargs)
         self.model_name = model_name
 
-        # 延迟导入，避免强制依赖 mplfinance
+        # 延迟导入，避免循环依赖
         from .visualization import generate_kline_chart
+        from .tools import get_futures_holding, get_futures_basic, get_related_futures_dynamic
 
-        # 注册可视化工具
+        # 注册交易工具 (LLM可调用, Tushare 15000积分全覆盖, doc_id=290 fut_holding)
         self.add_tool(
             name="generate_kline_chart",
             description=generate_kline_chart.__doc__ or "生成K线图并标注支撑压力位",
@@ -34,6 +35,47 @@ class APlusPlusReActAgent(ReActAgent):
             },
             function=generate_kline_chart
         )
+
+        self.add_tool(
+            name="get_futures_holding",
+            description="获取期货持仓排名 (Tushare fut_holding, doc_id=290). 用于分析主力持仓变化。ts_code如 SA2609.ZCE",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "ts_code": {"type": "string", "description": "合约代码 (必须)"},
+                    "trade_date": {"type": "string", "description": "交易日期 (可选, 默认最近)"}
+                },
+                "required": ["ts_code"]
+            },
+            function=get_futures_holding
+        )
+
+        self.add_tool(
+            name="get_futures_basic",
+            description="获取期货合约基本信息和主力列表 (fut_basic). 用于发现当前活跃合约。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "exchange": {"type": "string", "description": "交易所 (CZCE/DCE/SHF, 可空)"}
+                }
+            },
+            function=get_futures_basic
+        )
+
+        self.add_tool(
+            name="get_related_futures_dynamic",
+            description="动态获取当前symbol的相关期货数据 (基于RELATED_MAP + 最新主力). 分析时强烈推荐调用。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "主合约代码 (e.g. SA2609.ZCE)"}
+                },
+                "required": ["symbol"]
+            },
+            function=get_related_futures_dynamic
+        )
+
+        print(f"[Agent] 已注册 {len(self.tools)} 个期货工具 (15000积分覆盖, NEED_TOOL if missing)")
 
     def load_playbook(self):
         """加载交易 Playbook（由子类或外部调用）"""

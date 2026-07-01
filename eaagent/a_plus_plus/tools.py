@@ -255,3 +255,82 @@ def get_latest_observation(symbol: str, period: Literal["D", "30"] = "D", lookba
         lookback = 60 if period == "D" else 40
     result = get_structured_observation(symbol, period, lookback)
     return result.get("observation_text", "获取失败")
+
+
+# === LLM-callable Tushare Futures Tools (per user request + doc_id=290) ===
+
+def get_futures_holding(ts_code: str = "", trade_date: str = None) -> Dict[str, Any]:
+    """LLM tool: 获取期货持仓排名 (Tushare fut_holding, doc_id=290)
+    如果不指定trade_date，使用最近交易日。
+    返回结构化持仓数据 + summary for LLM。
+    """
+    if not ts_code:
+        return {"status": "error", "reason": "NEED_TOOL: ts_code required for get_futures_holding (e.g. SA2609.ZCE)"}
+
+    try:
+        from datetime import datetime  # local import to avoid top-level error
+        pro = get_pro_api()
+        if trade_date is None:
+            trade_date = datetime.now().strftime("%Y%m%d")  # or last trading day
+
+        df = pro.fut_holding(ts_code=ts_code, trade_date=trade_date)
+        if df is None or df.empty:
+            return {"status": "error", "ts_code": ts_code, "trade_date": trade_date, "reason": "No holding data (check date or quota)"}
+
+        summary = f"持仓排名前5: {df.head(5)[['broker', 'vol']].to_string(index=False)}"
+        return {
+            "status": "success",
+            "ts_code": ts_code,
+            "trade_date": trade_date,
+            "holding_data": df.to_dict("records")[:10],  # top 10 for LLM
+            "summary": summary,
+            "total_brokers": len(df)
+        }
+    except Exception as e:
+        return {"status": "error", "ts_code": ts_code, "reason": str(e)[:100]}
+
+
+def get_futures_basic(exchange: str = "", fut_type: str = "1") -> Dict[str, Any]:
+    """LLM tool: 获取期货合约基本信息 (fut_basic, 主力合约列表)"""
+    try:
+        pro = get_pro_api()
+        df = pro.fut_basic(exchange=exchange, fut_type=fut_type)
+        if df is None or df.empty:
+            return {"status": "error", "reason": "No basic data (check exchange or quota)"}
+
+        return {
+            "status": "success",
+            "contracts": df.to_dict("records")[:20],  # top 20
+            "summary": f"Found {len(df)} active contracts for {exchange or 'all'}"
+        }
+    except Exception as e:
+        return {"status": "error", "reason": str(e)[:100]}
+
+
+def get_related_futures_dynamic(symbol: str) -> Dict[str, Any]:
+    """LLM tool: 动态获取当前symbol的相关期货 (uses RELATED_MAP + fut_basic for latest)"""
+    try:
+        # Reuse core map from data_gathering (relative import fixed)
+        from eaagent.a_plus_plus.nodes.data_gathering import get_related_for_symbol
+        related = get_related_for_symbol(symbol)
+        from datetime import datetime, timedelta
+        pro = get_pro_api()
+        data = []
+        for r in related:
+            df = pro.fut_daily(ts_code=r, start_date=(datetime.now() - timedelta(days=30)).strftime("%Y%m%d"))
+            if not df.empty:
+                latest = df.iloc[0].to_dict()
+                data.append({"ts_code": r, "latest_close": latest.get("close"), "vol": latest.get("vol")})
+        return {
+            "status": "success",
+            "symbol": symbol,
+            "related": related,
+            "data": data,
+            "summary": f"Retrieved data for {len(data)} related contracts to {symbol}"
+        }
+    except Exception as e:
+        return {"status": "error", "symbol": symbol, "reason": str(e)[:100]}
+
+
+# Register these in eaagent_wrapper.py for LLM calling
+# If LLM needs more (e.g. fut_wsr, index_weight), it will output "NEED_TOOL: name" in critique
