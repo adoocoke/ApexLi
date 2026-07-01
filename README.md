@@ -1,12 +1,35 @@
 # EA Agent
 
-**EA Agent** 是一个基于 **LangGraph** 构建的**期货技术分析智能体**，采用 **Martin Fowler Agent Harness** 架构（Guides/Sensors/Actor/Steering/Memory），专注于为期货交易者提供**结构化、多轮自动优化**的技术分析。
+![EA Agent Banner](https://github.com/adoocoke/ApexLi/raw/main/docs/assets/banner.png) <!-- Replace with actual banner if available -->
 
-**核心理念**：每一步分析都**可审计** — 数据来源、精确引用的 Playbook 规则、质量传感器结果、LLM Critique 以及多轮演进过程在控制台和报告中完全可见。没有黑盒。
+**EA Agent** 是一个基于 **LangGraph + Martin Fowler Agent Harness** 构建的**期货技术分析智能体**。它提供**完全透明、可审计、多轮自我优化**的分析体验——每一步（数据、规则引用、质量检查、LLM Critique、工具调用、新闻分析）都在控制台和富文本报告中清晰可见。
+
+**核心理念**：**No Black Box**。所有决策都有明确Playbook引用、工具结果和LLM reasoning。
+
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python)](https://www.python.org)
+[![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-orange?style=for-the-badge)](https://github.com/langchain-ai/langgraph)
+[![Tushare](https://img.shields.io/badge/Tushare-15000积分-green?style=for-the-badge)](https://tushare.pro)
+[![Gradio](https://img.shields.io/badge/WebUI-Gradio-FF4B4B?style=for-the-badge&logo=gradio)](https://gradio.app)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+
+![Architecture](https://github.com/user-attachments/assets/2.jpg) <!-- Mermaid-style architecture diagram generated -->
 
 ---
 
-## 核心特性
+## ✨ 核心特性
+
+| 特性 | 说明 | 状态 |
+|------|------|------|
+| **多轮强制分析** | 最多5轮，`<4`轮强制继续，质量传感器+Critique驱动 | ✅ |
+| **LLM Tools (5个)** | `get_futures_news` (实时web_search)、holding、basic、related、kline。Prompt明确理由 | ✅ |
+| **Web UI** | 中文主力菜单（螺纹钢 RB、铁矿 I、纯碱 SA...）、过滤/搜索、Strategy切换、动态K线、相关品种Tabs、**50%宽度富文本Blog报告**（新闻+Holding+LLM理解） | ✅ |
+| **透明报告** | 多轮路径、关键规则引用、📰新闻（5条+LLM弃用说明）、详细Holding、决策依据 | ✅ |
+| **Playbook驱动** | v3/zen/dow/abu + Strategy (Full/Core/IdOnly) | ✅ |
+| **测试覆盖** | Test-First (pytest), AGENTS.md 严格执行 | ✅ |
+
+---
+
+## 快速开始
 
 | 特性                  | 说明                                                                 |
 |-----------------------|----------------------------------------------------------------------|
@@ -63,6 +86,34 @@ eaagent/
 ```
 
 ---
+
+## 🎨 运行效果预览
+
+![Web UI Dashboard](https://github.com/user-attachments/assets/1.jpg)
+*现代期货AI分析界面：左侧富文本Blog报告（含📰新闻 + LLM理解 + Holding），右侧动态K线 + 相关品种Tabs，顶部中文菜单 + Strategy切换*
+
+![Architecture Diagram](https://github.com/user-attachments/assets/2.jpg)
+*Martin Fowler Harness + LangGraph 架构概览*
+
+## 架构图 (Mermaid)
+
+```mermaid
+flowchart TD
+    A[Web UI<br/>中文菜单 + 可拖拽50%报告 + K线] --> B[APlusPlusReActAgent<br/>ReAct + Tools]
+    B --> C[LangGraph StateGraph<br/>Multi-Round Loop]
+    C --> D[Nodes:<br/>observation → data_gathering → signal_generation]
+    D --> E[Quality Layer:<br/>quality_sensor + llm_critique]
+    E --> F[Final Output +<br/>Rich Report Builder]
+    G[5 Tools] -->|web_search / Tushare| B
+    G --> H[get_futures_news (实时搜索)<br/>get_futures_holding<br/>get_futures_basic<br/>get_related_dynamic<br/>generate_kline_chart]
+    I[Playbook v3/zen/dow +<br/>Strategy Pattern] --> C
+    J[Martin Fowler Harness<br/>Guides / Sensors / Actor / Steering / Memory] --> B
+    style A fill:#1e3a8a,stroke:#60a5fa,color:#fff
+    style H fill:#166534,stroke:#4ade80,color:#fff
+    style J fill:#7c3aed,stroke:#c4b5fd
+```
+
+**架构说明**：Martin Fowler Harness 提供结构化控制，LangGraph 实现多轮循环，5个工具通过Prompt + OpenAI Tool Calling 让LLM自主决策。报告完整展示工具结果、新闻分析和LLM reasoning。
 
 ## 运行效果示例
 
