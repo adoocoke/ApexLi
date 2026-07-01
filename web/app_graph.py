@@ -31,7 +31,7 @@ def run_analysis(symbol, data_source, playbook_name, strategy_name="full"):
 
     signal = final_state.get("signals", [{}])[-1]
     extra = final_state.get("extra_data", {})
-    news = final_state.get("news", [])  # 新增新闻传递给report
+    # news已由data_gathering存入state["news"]，report_builder会读取
 
     # K线图 (仅从menu更新, analysis不重复)
     df_main = pd.DataFrame(extra.get("technical_indicators", []))

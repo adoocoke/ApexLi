@@ -36,9 +36,12 @@ def data_gathering(state: TAState) -> TAState:
         news_result = get_futures_news(state.get("current_symbol", "RB2610.SHF"), limit=5)
         state["extra_data"]["related"] = related_result
         state["extra_data"]["holding"] = holding_result
-        news_list = news_result.get("news", []) if isinstance(news_result, dict) else news_result if isinstance(news_result, list) else []
+        news_list = news_result.get("news", []) if isinstance(news_result, dict) else (news_result if isinstance(news_result, list) else [])
         state["news"] = news_list
-        state["extra_data"]["news"] = {"news": news_list, "summary": news_result.get("summary", "5条新闻")}  # 确保report_builder能从extra_data读取
+        state["extra_data"]["news"] = news_result  # 确保report_builder能从extra_data或state读取
+        color_print(f"    → 自动获取相关数据: {related_result.get('summary', 'N/A')}", Colors.OKGREEN)
+        color_print(f"    → 自动获取持仓数据: {holding_result.get('summary', holding_result.get('reason', 'N/A'))[:80]}...", Colors.OKGREEN)
+        color_print(f"    → 自动获取新闻: {news_result.get('summary', '5条宏观/产业新闻')}", Colors.OKGREEN)
         color_print(f"    → 自动获取相关数据: {related_result.get('summary', 'N/A')}", Colors.OKGREEN)
         color_print(f"    → 自动获取持仓数据: {holding_result.get('summary', holding_result.get('reason', 'N/A'))[:80]}...", Colors.OKGREEN)
         color_print(f"    → 自动获取新闻: {news_result.get('summary', '5条宏观/产业新闻')}", Colors.OKGREEN)

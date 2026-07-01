@@ -18,7 +18,9 @@ def build_analysis_report(
     issues = final_state.get("issues", [])
     critique_result = final_state.get("critique_result", {})
     sensor_suggestion = final_state.get("sensor_suggestion", {})
-    news = final_state.get("news") or (extra_data.get("news", {}).get("news", []) if isinstance(extra_data.get("news"), dict) else extra_data.get("news", []))
+    news = final_state.get("news") or extra_data.get("news", [])
+    if isinstance(news, dict):
+        news = news.get("news", news.get("news_list", [])) if isinstance(news.get("news", []), list) else []
 
     md = f"""<div style="font-family: system-ui, -apple-system, BlinkMacSystemFont; background: linear-gradient(145deg, #1a1a2e, #16213e); padding: 20px; border-radius: 12px; color: #e0f0ff; border: 1px solid #334455; max-width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
 
@@ -49,31 +51,33 @@ def build_analysis_report(
         main_contradiction = obs.get("main_contradiction", "N/A")
         md += f"**核心矛盾与洞察**: {main_contradiction}\n\n"
 
-    # Extra Data + News (新增，放在多轮总结之后)
-    if extra_data:
-        md += "\n### 📈 Extra Data\n"
-        if extra_data.get("related_futures") or extra_data.get("related"):
-            md += f"- **Related Futures**: {len(extra_data.get('related_futures', extra_data.get('related', [])))} records\n"
-        if extra_data.get("technical_indicators"):
-            md += f"- **Technical Indicators**: {len(extra_data['technical_indicators'])} records\n"
-        if extra_data.get("holding"):
-            holding = extra_data.get("holding", {})
-            summary = holding.get("summary", "")
-            if not summary and holding.get("holding_data"):
-                summary = f"Top broker vol: {holding.get('holding_data', [{}])[0].get('vol', 'N/A')}"
-            md += f"- **Holding Data** (持仓排名): {summary or 'Top 5 brokers loaded'}\n"
+    # Extra Data + News (新增，放在多轮总结之后，确保始终显示)
+    md += "\n### 📈 Extra Data\n"
+    if extra_data.get("related_futures") or extra_data.get("related"):
+        md += f"- **Related Futures**: {len(extra_data.get('related_futures', extra_data.get('related', [])))} records\n"
+    if extra_data.get("technical_indicators"):
+        md += f"- **Technical Indicators**: {len(extra_data['technical_indicators'])} records\n"
+    if extra_data.get("holding"):
+        holding = extra_data.get("holding", {})
+        summary = holding.get("summary", "")
+        if not summary and holding.get("holding_data"):
+            brokers = "\n".join([f"  {h.get('broker', 'N/A')}: {h.get('vol', 'N/A')}" for h in holding.get("holding_data", [])[:5]])
+            summary = f"持仓排名前5:\n{brokers}"
+        md += f"- **Holding Data** (持仓排名): {summary or 'Top 5 brokers loaded'}\n"
 
-    if news:
+    if news and isinstance(news, list) and len(news) > 0:
         md += "\n### 📰 重要新闻与宏观驱动 (Top 5 - LLM已分析/弃用评估)\n"
-        for item in (news[:5] if isinstance(news, list) else []):
-            impact = item.get("impact", "中") if isinstance(item, dict) else "中"
+        for item in news[:5]:
+            if not isinstance(item, dict): continue
+            impact = item.get("impact", "中")
             impact_emoji = "🔴" if impact == "高" else "🟡"
-            title = item.get("title", str(item)) if isinstance(item, dict) else str(item)
-            md += f"- {impact_emoji} **{title}** ({item.get('date', '近期') if isinstance(item, dict) else '近期'}) [{item.get('source', 'macro') if isinstance(item, dict) else 'macro'}]\n"
-            summary = item.get("summary", "") if isinstance(item, dict) else ""
-            md += f"  {summary} **(影响: {impact})**\n"
+            title = item.get("title", "News")
+            md += f"- {impact_emoji} **{title}** ({item.get('date', '近期')}) [{item.get('source', 'macro')}]\n"
+            md += f"  {item.get('summary', '')} **(影响: {impact})**\n"
             llm_insight = "LLM已纳入决策（驱动基本面判断，影响持仓/趋势）" if any("新闻" in str(o) or "news" in str(o).lower() or "macro" in str(o).lower() for o in observations) else "LLM暂未深度分析/弃用（本次纯技术观望，未引用新闻作为决策依据）"
             md += f"  **LLM理解/弃用**: {llm_insight}\n\n"
+    else:
+        md += "\n### 📰 重要新闻与宏观驱动 (Top 5)\n- 暂无新闻数据 (LLM未请求或自动调用失败)\n"
 
     # Enhanced sections with HTML for blog-like feel
     md += """<div style="background: #112233; padding: 15px; border-radius: 8px; margin-top: 20px;">
