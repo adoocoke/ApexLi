@@ -12,7 +12,7 @@ class APlusPlusReActAgent(ReActAgent):
 
         # 延迟导入，避免循环依赖
         from .visualization import generate_kline_chart
-        from .tools import get_futures_holding, get_futures_basic, get_related_futures_dynamic
+        from .tools import get_futures_holding, get_futures_basic, get_related_futures_dynamic, get_futures_news
 
         # 注册交易工具 (LLM可调用, Tushare 15000积分全覆盖, doc_id=290 fut_holding)
         self.add_tool(
@@ -75,7 +75,20 @@ class APlusPlusReActAgent(ReActAgent):
             function=get_related_futures_dynamic
         )
 
-        print(f"[Agent] 已注册 {len(self.tools)} 个期货工具 (15000积分覆盖, NEED_TOOL if missing)")
+        self.add_tool(
+            name="get_futures_news",
+            description="获取与期货相关的5条重要新闻/宏观事件 (Tushare news + 产业/政策). 返回title/date/summary/impact。用于判断外部驱动因素。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "关联合约 (可选)"},
+                    "limit": {"type": "integer", "description": "返回条数，默认5", "default": 5}
+                }
+            },
+            function=get_futures_news
+        )
+
+        print(f"[Agent] 已注册 {len(self.tools)} 个期货工具 (news + holding + basic + related, 15000积分覆盖, NEED_TOOL if missing)")
 
     def load_playbook(self):
         """加载交易 Playbook（由子类或外部调用）"""

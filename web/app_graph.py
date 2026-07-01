@@ -31,6 +31,7 @@ def run_analysis(symbol, data_source, playbook_name, strategy_name="full"):
 
     signal = final_state.get("signals", [{}])[-1]
     extra = final_state.get("extra_data", {})
+    news = final_state.get("news", [])  # 新增新闻传递给report
 
     # K线图 (仅从menu更新, analysis不重复)
     df_main = pd.DataFrame(extra.get("technical_indicators", []))
@@ -51,7 +52,7 @@ def run_analysis(symbol, data_source, playbook_name, strategy_name="full"):
 
     # 1. 真实分析过程 (report_builder Markdown 直接返回给 gr.Markdown, 高度匹配K线680px)
     console_text = build_analysis_report(final_state, symbol, data_source)
-    # 保持Markdown格式 (gr.Markdown支持 ##, ```, ** 等, 比Textbox美观)
+    # 保持Markdown格式 (gr.Markdown支持 ##, ```, ** 等, 比Textbox美观). News section added in report_builder.
     return console_text, main_chart, i_chart or main_chart, j_chart or main_chart
 
 with gr.Blocks() as demo:

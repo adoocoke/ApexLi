@@ -44,7 +44,12 @@ def structured_observation(state: TAState) -> TAState:
 2. `playbook_references` 字段的每一项必须同时包含：
    - 规则完整标题
    - 当前市场情况如何匹配这条规则的具体解释（至少一句话）
-3. **工具调用优先**：如果需要额外期货数据（如持仓排名、相关合约主力、结算价、K线），**必须先调用工具** (get_futures_holding, get_futures_basic, get_related_futures_dynamic, generate_kline_chart)。可用工具已注册 (15000积分覆盖, doc_id=290 fut_holding)。调用格式为 tool call tool_name with 。如果工具缺失，输出 "NEED_TOOL: tool_name (reason)"。
+3. **工具调用优先**：如果需要额外期货数据（如持仓排名、合约基本信息、相关品种、**新闻/宏观事件**、K线），**必须先调用工具** (get_futures_holding, get_futures_basic, get_related_futures_dynamic, get_futures_news, generate_kline_chart)。可用工具已注册 (15000积分覆盖, doc_id=290 fut_holding)。调用格式为 tool call tool_name with 。如果工具缺失，输出 "NEED_TOOL: tool_name (reason)"。
+
+**使用理由**：
+- get_futures_holding / 仓单(fut_wsr): 判断主力持仓变化与多空博弈（增仓 vs 减仓方向）。
+- get_futures_basic: 了解合约规格、主力列表、历史成交量，确认当前活跃合约。
+- get_futures_news: 捕捉宏观政策、产业库存、国际事件对价格的驱动（e.g. 降准、限产、库存数据），避免纯技术分析脱离基本面。
 
 4. 输出必须严格遵守以下 JSON 格式（不要有多余文字）：
 

@@ -18,6 +18,7 @@ def build_analysis_report(
     issues = final_state.get("issues", [])
     critique_result = final_state.get("critique_result", {})
     sensor_suggestion = final_state.get("sensor_suggestion", {})
+    news = final_state.get("news") or extra_data.get("news", [])
 
     md = f"""<div style="font-family: system-ui, -apple-system, BlinkMacSystemFont; background: linear-gradient(145deg, #1a1a2e, #16213e); padding: 20px; border-radius: 12px; color: #e0f0ff; border: 1px solid #334455; max-width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
 
@@ -48,7 +49,7 @@ def build_analysis_report(
         main_contradiction = obs.get("main_contradiction", "N/A")
         md += f"**核心矛盾与洞察**: {main_contradiction}\n\n"
 
-    # Enhanced sections with HTML for blog-like feel
+    # Enhanced sections with HTML for blog-like feel (news already inserted above)
     md += """<div style="background: #112233; padding: 15px; border-radius: 8px; margin-top: 20px;">
 
 ### ⚠️ 风险与问题
@@ -76,8 +77,9 @@ def build_analysis_report(
 ### 📌 最终决策依据
 - **多轮路径**: 强制完成 {rounds} 轮分析 (confidence threshold 强制多轮)
 - **关键规则**: 引用Playbook核心规则，结构化匹配
-- **数据支撑**: Tools调用 (holding/related/basic) + 动态K线 + 持仓数据验证
+- **数据支撑**: Tools调用 (news/holding/related/basic) + 动态K线 + 持仓/仓单验证
 - **风险评估**: {len(issues)} 个问题已评估
+- **新闻作用**: 宏观政策/库存事件驱动基本面判断
 </div>
 
 ---

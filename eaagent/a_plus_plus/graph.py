@@ -112,7 +112,14 @@ def signal_generation(state: TAState) -> TAState:
 - get_futures_holding(ts_code): 持仓排名 (doc_id=290, 强烈推荐用于主力分析)
 - get_futures_basic(exchange): 合约基本信息和主力列表
 - get_related_futures_dynamic(symbol): 动态相关品种数据 (自动匹配RB→I/JM, SA→FG/SH)
+- get_futures_news(symbol, limit=5): 重要新闻/宏观政策 (驱动基本面)
 - generate_kline_chart(symbol): K线图
+
+**工具使用理由**（LLM必须理解）：
+- **News**：捕捉政策、库存、国际事件对期货价格的短期/中期驱动，避免纯技术脱离现实。
+- **get_futures_basic**：确认当前主力合约规格、历史volume，判断流动性与真实主力。
+- **Holding/仓单**：判断机构/主力仓位变化（增仓方向 = 趋势燃料），是量仓分析核心。
+- **Related**：黑色/化工系联动验证趋势一致性。
 
 如果需要工具但未提供, 输出 "NEED_TOOL: tool_name (reason for analysis)"。
 
