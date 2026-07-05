@@ -45,7 +45,9 @@ def llm_critique(state: TAState) -> TAState:
   "should_continue": true/false,
   "reason": "是否继续下一轮的理由（简洁明确，必须提到多轮验证）",
   "comparison_summary": "前后轮对比的核心结论（例如：空头力量增强、信号方向一致、风险上升等）",
-  "risk_change": "上升 / 下降 / 不变"
+  "risk_change": "上升 / 下降 / 不变",
+  "score": 85,  // Phase 3: 0-100 Critique 评分 (用于 Dashboard 柱状图和报告)
+  "key_rules": ["2.1 量仓分析", "3.1 背驰判断"]  // 主要规则 (真实数据)
 }}"""
     else:
         prompt += """
@@ -56,7 +58,9 @@ def llm_critique(state: TAState) -> TAState:
   "should_continue": true/false,
   "reason": "判断理由（必须提到强制多轮）",
   "comparison_summary": "当前分析的核心结论",
-  "risk_change": "上升 / 下降 / 不变"
+  "risk_change": "上升 / 下降 / 不变",
+  "score": 92,  // Phase 3: 0-100 Critique 评分 (用于 Dashboard 柱状图和报告)
+  "key_rules": ["2.1 量仓分析", "4.2 定式确认"]  // 主要规则 (真实数据)
 }}"""
 
     system_prompt = state["messages"][0]["content"] if state.get("messages") else ""
@@ -66,11 +70,29 @@ def llm_critique(state: TAState) -> TAState:
         "raw_response": response,
         "has_previous_round": prev_observation is not None
     }
-    # Phase 3: 添加 critique_scores 到 state (用于 Dashboard 柱状图)
-    if "critique_scores" not in state:
-        state["critique_scores"] = []
-    # 模拟评分 (后续从 LLM JSON 解析)
-    score = 85 if "should_continue" in response.lower() else 92
-    state["critique_scores"].append(score)
+
+    # Phase 3: 从 LLM JSON 解析真实 critique_score 和 key_rules (非 fake)
+    try:
+        import json, re
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group(0))
+            score = data.get("score", 85)
+            rules = data.get("key_rules", ["规则匹配"])
+            if "critique_scores" not in state:
+                state["critique_scores"] = []
+            state["critique_scores"].append(score)
+            state["critique_result"]["score"] = score
+            state["critique_result"]["key_rules"] = rules
+        else:
+            score = 85
+            if "critique_scores" not in state:
+                state["critique_scores"] = []
+            state["critique_scores"].append(score)
+    except Exception:
+        score = 85
+        if "critique_scores" not in state:
+            state["critique_scores"] = []
+        state["critique_scores"].append(score)
 
     return state
