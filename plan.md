@@ -17,19 +17,23 @@
 采用Share链接的**6 Phase路线图**，优先**Phase 1**（Harness组件 + LangGraph重构 + 可观测性），然后Phase 2 (Playbook结构化规则引擎)。 
 - **Harness**：Guides (Playbook YAML/Pydantic)、Sensors (Tushare data_provider)、Actor (ReAct/signal_gen)、Steering (冲突仲裁 + 风险)、Memory (state + trace)。
 - **Playbook**：从markdown → 结构化规则集 (id, timeframe, condition, action, priority)，RulesEngine节点逐条验证。
-- **多时间框架**：子图/并行节点聚合共识，SteeringNode强制“一致才交易”。
+- **多时间框架 (Phase 3)**：子图/并行节点聚合共识，SteeringNode强制“一致才交易”（日线未确认或多框架冲突 → NO_TRADE；输出 TimeframeConsensus 包含趋势/形态/信号强度/冲突标记；TimeframeAnalysis Pydantic 模型）。
+- **风险内嵌 (Phase 4)**：SteeringNode 内建风险评估 (止损、30%仓位、R:R)、RiskCalculationTool，决策必须包含 risk_assessment。
+- **工具体系 (Phase 5)**：ToolRegistry (分类 + Steering 约束)、工具调用可观测性 (参数/返回/耗时)。
+- **评估与记忆 (Phase 6)**：PostDecisionReview 节点、分层 Memory (短期轨迹 + 长期规则执行历史)、质量评分 (Playbook遵循率、冲突拦截率)。
 - **Web/UI (Phase 0)**：已作为快速验证完成（**采用新 Share 链接的聊天布局**：实时 streaming 日志 + prompt blocks、rich Markdown Blog 风格、多轮 incremental live updates、50% 宽度 resizable panels、独立 Tabs 相关 K 线、Chinese 主力合约菜单 + Strategy 下拉、prompt 完整捕获）。
 - **Test-First**：每个Phase先写integration/unit test (test_harness.py, test_rules_engine.py)，复用现有graph.py/state.py/tools.py。
-- **No gold-plating**：最小变更，先落地SteeringNode + structured Playbook，再扩展。
+- **No gold-plating**：最小变更，先落地SteeringNode + structured Playbook + Phase 3 仲裁，再扩展。
 
 避免循环导入、保持generator yield兼容、确保prompt捕获和50%宽度报告不回归。
 
 ## Critical Files (关键文件)
-- `eaagent/a_plus_plus/state.py` (新AnalysisState + TimeframeAnalysis + DecisionTrace)。
-- `eaagent/a_plus_plus/nodes/steering.py` (新SteeringNode：冲突仲裁、风险评估、规则检查)。
-- `eaagent/a_plus_plus/graph.py:100-400` (添加Steering节点、conditional edges、subgraph支持)。
-- `eaagent/prompts/fortress.py + playbooks/manager.py` (结构化加载YAML规则)。
+- `eaagent/a_plus_plus/state.py` (新AnalysisState + TimeframeAnalysis + DecisionTrace + TimeframeConsensus)。
+- `eaagent/a_plus_plus/nodes/steering.py` (新SteeringNode：冲突仲裁、风险评估、规则检查、多框架一致性强制、风险计算)。
+- `eaagent/a_plus_plus/graph.py:100-400` (添加Steering节点、conditional edges、subgraph支持、多时间框架并行)。
 - `eaagent/a_plus_plus/rules_engine.py` (新RulesEngine，可复用现有quality_sensor)。
+- `eaagent/prompts/fortress.py + playbooks/manager.py` (结构化加载YAML规则)。
+- `eaagent/a_plus_plus/tool_registry.py` (Phase 5: ToolRegistry)。
 - `web/app_graph.py + web/report_builder.py` (Phase 0：确保prompt/多轮报告稳定，添加Harness trace显示)。
 - `tests/integration/test_harness.py + test_rules_engine.py` (Test-First)。
 - `docs/wiki/Harness-Overview.md + README.md + todo/remaining_work.md` (文档更新)。
@@ -58,4 +62,4 @@
 - **Docs**：README添加Harness Mermaid图 + Phase进度，更新todo/remaining_work.md。
 - 符合AGENTS.md (Test-First、无gold-plating、reuse现有graph/nodes/tools、incremental commit、Chinese response)。
 
-Plan reviewed and updated with new Share link (da56a84d...): 本次聊天布局 (streaming prompt blocks + rich Markdown + resizable 50% panels + Tabs K-line) 已整合到 Phase 0 描述中。覆盖两个 Share 链接核心 (长期 Harness + 当前 UI/报告布局)、精确文件/行号复用、Test-First。已就绪，下一步启动 Phase 1 (SteeringNode)。
+Plan reviewed and updated with both Share links: Phase 3 (多时间框架协同与冲突仲裁 + TimeframeConsensus) + Phase 4-6 (风险内嵌、ToolRegistry、Memory/评估) 已完整补充。覆盖两个 Share 链接核心 (长期 6 Phase Harness 计划 + 当前 UI/报告布局)、精确文件/行号复用、Test-First。已就绪，下一步启动 Phase 1 (SteeringNode + structured state)。
