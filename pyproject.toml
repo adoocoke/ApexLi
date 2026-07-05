@@ -37,6 +37,12 @@ visualization = [
     "matplotlib>=3.7.0",
     "mplfinance>=0.12.0",
 ]
+phase3 = [
+    "streamlit>=1.28.0",
+    "vectorbt>=0.26.0",  # 回测引擎 (资金曲线 + 指标)
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
