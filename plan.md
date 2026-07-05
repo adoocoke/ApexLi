@@ -1,28 +1,68 @@
-# Plan: 参考Grok Share链接实现EA Agent架构演进 (Harness + Playbook规则引擎 + 多时间框架仲裁)
+# Phase 3 Checklist: Streamlit Dashboard (Killer Features) + Real LLM + Backtest
 
-## Context (背景)
-用户提供两个 Grok Share 链接：
-- 原链接 (https://grok.com/share/c2hhcmQtNA_13ade8a3-e235-40af-bf03-2da72e00c02e)：**EA Agent中长期演进大计划**（Martin Fowler Agent Harness落地、Playbook规则引擎、多时间框架仲裁、6 Phase路线图）。
-- 新链接 (https://grok.com/share/c2hhcmQtNA_da56a84d-39de-4873-962f-d51d23e6c66f)：**本次聊天的布局**（Web UI/报告布局参考：实时 streaming 日志 + prompt blocks、rich Markdown Blog 风格、50% 宽度 resizable panels、Tabs 相关 K 线、Chinese 菜单、incremental live updates）。
+**总体进度: 75%** (最新 commit 35ce5c5 | git clean | LLM 自主轮次 + human hook + 实时日志已完成)
 
-当前项目状态：
-- **Phase 0 (Web/UI)**: **100% 完成** — 中文主力合约菜单 (螺纹钢 RB2610.SHF 等)、50% 宽度富文本 Blog 报告 (多轮总结/关键规则/决策依据/News+Holding+LLM 洞察)、独立 Tabs 相关 K 线、Strategy 切换、prompt 捕获、动态 RELATED_MAP、强制多轮 (MAX_ROUNDS=5)、LLM 工具调用 (5 tools with schemas)。
-- **Phase 1 (Harness 骨架)**: **0%** — 待启动 (SteeringNode + structured AnalysisState + RulesEngine)。
-- 最新状态: git clean (2fa33d1 feat(phase3): LLM 自主决定分析轮次 (移除强制4轮) + human intervention hook 完善)，tests pass, LLM Prompt/Response 在终端/Web 完全可见。
-- 符合AGENTS.md (Test-First、minimal、reuse、incremental commit/push、中文回复、无新文件优先、Orient-Clarify-Slice-Check-TDD-Verify-Reflect)。
+### Phase 0: Web/UI 基础 (100% ✅)
+- [x] 中文主力合约菜单 + 动态 K线 (Plotly)
+- [x] Gradio/Streamlit 50% 宽度 rich Markdown 报告 (Blog 风格、多轮总结、关键规则、News+Holding+LLM 洞察)
+- [x] Tabs (相关品种 K线) + Strategy/Playbook 下拉
+- [x] Prompt 完整捕获 + 动态 RELATED_MAP
+- [x] Web 开关控制 Mock/真实LLM (无后台硬编码)
+- [x] LLM Prompt/Response 在终端 + Web 日志实时可见 (`llm.py` print)
 
-**Phase 3 “杀手级”功能进度更新（最新用户指令“保留现在进度。明天继续”）**：
-- **Streamlit Dashboard (3栏布局)**：**95% 完成** — 左侧控制面板（品种/策略/Playbook + “模拟实盘”开关控制真实LLM）、主Tabs（多轮轨迹可展开每轮：输入→规则→LLM思考→Critique评分+工具表）、K线、报告、回测；右侧 Shared State（实时轮次/平均Critique分数）+ 人工干预输入（提交后影响graph human_feedback）+ 实时日志区（明确指向终端 LLM Prompt/Response）。
-- **graph.py + llm_critique.py**：**增强完成** — `critique_scores` 传播、human intervention hook（interrupt_reason/feedback_log）、thread_id 持久化；**LLM 完全自主决定轮次**（移除所有强制4轮/多轮逻辑，prompt 改为“根据数据充分性自主判断 should_continue”，通常1-3轮）。
-- **真实LLM + 可见性**：llm.py 打印 `[LLM Prompt]` + `[Grok Response]`（JSON with score/key_rules）；Dashboard 集成真实 `build_graph().invoke()` + 动态 USE_MOCK 由 Web 开关控制（无硬编码）。
-- **报告增强**：Mermaid 甘特 + Critique 柱状图（真实数据，非 fake）；report_builder 解析 critique_scores/rules。
-- **Test-First**：test_dashboard.py + test_backtest.py 结构通过（Streamlit mock + pandas 回测 fallback）。
-- **backtest/engine.py**：VectorBT 最小实现（pandas fallback 解决 numba 构建问题）。
-- **依赖**：streamlit/vectorbt 已记录，XAI_API_KEY 在 .env。
+### Phase 3 Core: Streamlit Dashboard 3栏布局 (90% ✅)
+- [x] **左侧栏**: 品种选择、策略模式 (full/core/idonly)、Playbook 版本、“开始分析”按钮 + “模拟实盘 (Tushare)” toggle (控制真实 LLM)
+- [x] **主 Tabs**:
+  - [x] 多轮分析轨迹: 可展开每轮 (输入数据 → Playbook 规则 → LLM 思考 → Critique 评分 + 工具调用表)
+  - [x] K线 + 可视化 (Plotly candlestick + 信号标注，复用 `web.charts.kline`)
+  - [x] 最终报告 (结构化卡片 + 风险 + 置信度 + 导出按钮，复用 `report_builder`)
+  - [ ] 绩效回测 (资金曲线 + 指标 + A/B 测试)
+- [x] **右侧栏**: Shared State 概览 (当前轮次、平均 Critique 分数)、人工干预输入框 + “提交干预” (影响 `human_feedback`) + “强制结束” + **实时日志区** (LLM Prompt/Response 说明)
+- [x] 集成真实 `build_graph().invoke()` + `critique_scores` 传播 + session_state 共享
 
-**当前进度 75%**（Dashboard + graph human/LLM自主轮次 + 真实数据/日志可见性）。**明天继续**：完善 report_builder Mermaid决策路径 + 完整 VectorBT equity curve/A-B 测试 + evaluation/ab_test.py + PDF导出。保持 Web 稳定，无 gold-plating。
+### LLM & Graph 增强 (95% ✅)
+- [x] LLM 完全**自主决定轮次** (移除强制4轮/多轮逻辑，prompt 强调“数据充分则结束”，通常1-3轮)
+- [x] `llm_critique.py` + `graph.py`: 真实 JSON 解析 (`score`/`key_rules`/`should_continue`) → `critique_scores` + `critique_result`
+- [x] Human intervention hook (`human_feedback`、`interrupt_reason`、`feedback_log`)
+- [x] `should_continue_after_critique`: 完全依赖 LLM 判断 + 兜底 (高置信度/无 issues → 结束)
+- [x] `llm.py`: 所有路径打印 `[LLM Prompt]` + `[Grok Response]` (Mock/Real/Fallback 均可见)
+- [x] thread_id 持久化 + MemorySaver
 
-**用户指令 "现在强制分析到底4轮没有意义，就让llm 决定分析几轮吧"** 已完全执行（prompt + decision logic 更新，测试验证1轮结束）。下一步 graph 持久化 + 报告可视化 + 回测增强。计划就绪，保留当前状态。
+### Report & Visualization (60% ✅)
+- [x] `report_builder.py`: 真实 `critique_scores` + rules 渲染 (Mermaid 甘特 + Plotly 柱状图代码块)
+- [ ] 完整 Mermaid **决策路径图** (带分支/score)
+- [ ] Critique **各轮评分柱状图** (Plotly 嵌入)
+- [ ] PDF/Markdown 一键导出 (reportlab 或 markdown-to-pdf)
+
+### Backtest & Evaluation (40% ✅)
+- [x] `backtest/engine.py`: VectorBT 最小引擎 (pandas fallback 解决 numba 问题，equity curve + 基本指标)
+- [ ] 完整 VectorBT (Sharpe, MaxDD, WinRate、信号标注)
+- [ ] `evaluation/ab_test.py`: Agent vs 纯规则 A/B 测试 + 样本内外验证
+- [ ] 回测 Tab 集成 (equity 曲线图 + 指标表格 + A/B 对比)
+
+### Test & Docs (80% ✅)
+- [x] Test-First: `tests/integration/test_backtest.py` + `test_dashboard.py` (布局/组件断言通过)
+- [x] 集成测试 (真实 LLM 路径、critique_scores 传播)
+- [x] plan.md 更新为 **Checklist 格式** (本文件)
+- [ ] 更新 README + 添加 Mermaid 图 (Dashboard 布局 + graph flow)
+- [ ] docs/wiki/Streamlit-Dashboard-Layout.md (可选)
+
+### Dependencies & Misc (90% ✅)
+- [x] requirements.txt (streamlit, vectorbt, plotly, pandas, openai/xai)
+- [x] `.env` (XAI_API_KEY placeholder)
+- [x] numba/llvmlite 构建问题记录 (pandas fallback 临时方案，推荐 conda)
+- [ ] Java 骨架 (`java_agent/`) + FastAPI/Docker (Phase 后续)
+- [ ] 生产化 (streaming、持久化 human intervention)
+
+**当前剩余优先任务 (明天继续)**:
+1. 完善 `web/report_builder.py` (Mermaid 决策路径 + 真实 Plotly 柱状图)
+2. 增强 `backtest/engine.py` + `evaluation/ab_test.py` (完整 VectorBT + A/B)
+3. Dashboard 回测 Tab + PDF 导出
+4. 更新 tests + README
+
+**最新用户指令**: “把 plan 改成 checklist 方便看进度” — 已转换为 Markdown Task List 格式，便于跟踪 ✅/☐。**保留当前 75% 进度**，明天从 Report 增强继续。符合 AGENTS.md (minimal、reuse、Test-First、中文回复)。
+
+**Latest Commit**: 35ce5c5 (plan checklist + LLM 自主轮次)。git clean，可立即运行 `streamlit run streamlit_dashboard.py` 查看效果。
 
 ## Recommended Approach (推荐方案)
 采用Share链接的**6 Phase路线图**，优先**Phase 1**（Harness组件 + LangGraph重构 + 可观测性），然后Phase 2 (Playbook结构化规则引擎)。 
