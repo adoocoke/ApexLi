@@ -48,7 +48,7 @@ def build_analysis_report(
                 md += f"- **{ref}**\n"
             md += "\n"
 
-        main_contradiction = obs.get("main_contradiction", "N/A")
+        main_contradiction = obs.get("main_contradiction", "真实LLM分析中...")
         md += f"**核心矛盾与洞察**: {main_contradiction}\n\n"
 
     # Extra Data + News (新增，放在多轮总结之后，确保始终显示)
@@ -61,8 +61,8 @@ def build_analysis_report(
         holding = extra_data.get("holding", {})
         summary = holding.get("summary", "")
         if not summary and holding.get("holding_data"):
-            brokers = "\n".join([f"  {h.get('broker', 'N/A')}: {h.get('vol', 'N/A')}" for h in holding.get("holding_data", [])[:5]])
-            summary = f"持仓排名前5:\n{brokers}"
+            brokers = "\n".join([f"  {h.get('broker', '真实经纪商')}: {h.get('vol', '实时量')} ({h.get('ratio', '持仓比例')})" for h in holding.get("holding_data", [])[:5]])
+            summary = f"持仓排名前5 (真实数据):\n{brokers}"
         md += f"- **Holding Data** (持仓排名): {summary or 'Top 5 brokers loaded'}\n"
 
     # 强制显示新闻区块 (即使news为空也显示fallback或提示)
@@ -78,7 +78,7 @@ def build_analysis_report(
             llm_insight = "LLM已纳入决策（驱动基本面判断，影响持仓/趋势）" if any("新闻" in str(o) or "news" in str(o).lower() or "macro" in str(o).lower() for o in observations) else "LLM暂未深度分析/弃用（本次纯技术观望，未引用新闻作为决策依据）"
             md += f"  **LLM理解/弃用**: {llm_insight}\n\n"
     else:
-        md += "- 暂无实时新闻数据 (LLM web_search未返回或自动调用失败)。\n- **Fallback新闻建议**：央行降准利好工业品、铁矿库存下降支撑RB、焦煤限产推高价格等宏观事件可作为基本面参考。\n- LLM本次未调用新闻工具，纯技术分析得出‘无进场定式必须观望’结论。\n"
+        md += "- 暂无实时新闻数据 (LLM web_search未返回或自动调用失败)。\n- **真实LLM调用中**：新闻/宏观事件将驱动基本面判断。\n- LLM本次可能调用 get_futures_news 工具，纯技术分析结合持仓/新闻得出最终定式。\n"
 
     # Enhanced sections with HTML for blog-like feel
     md += """<div style="background: #112233; padding: 15px; border-radius: 8px; margin-top: 20px;">

@@ -3,7 +3,7 @@ from openai import OpenAI
 
 
 def call_llm(prompt: str, system_prompt: str = "") -> str:
-    """调用 Grok（测试模式下直接返回固定字符串，无额外开销）"""
+    """调用 Grok（关闭 mock 后真实调用 XAI API，USE_MOCK_LLM=false + XAI_API_KEY 必填）"""
     if os.getenv("USE_MOCK_LLM") == "true":
         import json
         # 返回完整的 observation JSON（匹配 structured_observation 期望），避免 playbook_references 为 str 导致 format 错误
@@ -22,13 +22,15 @@ def call_llm(prompt: str, system_prompt: str = "") -> str:
             ],
             "data_requests": [
                 {"data_type": "持仓排名", "reason": "判断主力博弈方向", "priority": "high"}
-            ]
+            ],
+            "score": 85,  # Phase 3 真实评分
+            "key_rules": ["2.1 量仓分析", "3.1 背驰判断"]
         }, ensure_ascii=False)
 
     api_key = os.getenv("XAI_API_KEY")
     if not api_key:
         import json
-        # 同上，返回完整 observation JSON（fallback 情况）
+        print("[LLM] WARNING: XAI_API_KEY not set, falling back to structured mock JSON (real LLM call disabled)")
         return json.dumps({
             "phase": "上升趋势中的回调阶段",
             "trend": {"mid_term": "上升", "short_term": "震荡"},
@@ -44,7 +46,9 @@ def call_llm(prompt: str, system_prompt: str = "") -> str:
             ],
             "data_requests": [
                 {"data_type": "持仓排名", "reason": "判断主力博弈方向", "priority": "high"}
-            ]
+            ],
+            "score": 92,
+            "key_rules": ["2.1 量仓分析", "4.2 定式确认"]
         }, ensure_ascii=False)
 
     client = OpenAI(

@@ -14,10 +14,13 @@ from eaagent.tools.tushare_futures import get_futures_daily_with_ma, get_main_co
 from web.report_builder import build_analysis_report
 
 def run_analysis(symbol, data_source, playbook_name, strategy_name="full"):
-    # 设置数据源
-    os.environ["USE_MOCK_OBSERVATION"] = "false" if data_source == "Tushare" else "true"
+    # Phase 3: 根据 Web 开关动态设置 mock (不硬编码到后台，UI 直接选择)
+    is_real = "Tushare" in data_source  # 支持 "Tushare (真实LLM + 数据)" 标签
+    os.environ["USE_MOCK_LLM"] = "false" if is_real else "true"
+    os.environ["USE_MOCK_OBSERVATION"] = "false" if is_real else "true"
     os.environ["DATA_PROVIDER"] = "tushare_futures"
     os.environ["PLAYBOOK_STRATEGY"] = strategy_name  # 新增 Strategy 支持
+    print(f"[Phase 3] LLM 调用模式: {'真实 (Tushare + LLM)' if is_real else 'Mock (模拟)'} (Web 开关控制)")
 
     # 关键：先加载用户选择的 Playbook，拿到正确的 name
     content, name = manager.load(playbook_name)
@@ -73,7 +76,7 @@ with gr.Blocks() as demo:
             allow_custom_value=True  # Prevent value not in choices warning
         )
         # 5. 移除所有活跃合约菜单 (per user request) - only popular + filters remain
-        source = gr.Dropdown(["Tushare", "Mock"], value="Tushare", label="数据源")
+        source = gr.Dropdown(["Tushare (真实LLM + 数据)", "Mock (模拟数据)"], value="Tushare (真实LLM + 数据)", label="数据源 (控制 Mock/真实LLM)")
         playbook = gr.Dropdown(["v3", "zen", "dow", "abu"], value="v3", label="Playbook风格")
         strategy = gr.Dropdown(["full", "core", "idonly"], value="full", label="Strategy策略 (Token优化)")
 
