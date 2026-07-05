@@ -11,7 +11,14 @@
 - 最新状态: git clean (c8d16f3 cleanup test stub + report tweaks), all explicit requests done, tests pass.
 - 符合AGENTS.md (Test-First、minimal、reuse、incremental commit/push、中文回复、无新文件优先、Orient-Clarify-Slice-Check-TDD-Verify-Reflect)。
 
-此plan 已更新当前进度（Phase 0 100% 完成，Phase 1 待启动）。**新增 Phase 3 "杀手级" 功能（来自最新 Share 链接）**：backtest 完整回测引擎 (VectorBT)、evaluation 模块 (A/B 测试 + 样本内外验证)、Streamlit Dashboard (推荐替换/并存 app.py)、Java LangGraph4j 骨架 (java_agent/)、生产化 (FastAPI + Docker)。Phase 2 增强 (graph 持久化/人工钩子、报告 Mermaid + 柱状图、Playbook 版本/高亮、UI 按钮)。Streamlit 布局采用推荐 3 栏设计 (侧边栏选择 + 主 Tab 分析/回测 + 右栏 State/干预)。**用户指令：直接进入 Phase 3**。以Share链接为核心，优先实现 Streamlit Dashboard 3栏布局 + backtest 引擎 (复用现有 report_builder/kline/graph)，保持 Web 稳定。
+此plan 已更新当前进度（Phase 0 100% 完成，Phase 1 待启动）。**Phase 3 “杀手级”功能已启动并完成第一步**（来自最新 Share 链接）：
+- **Streamlit Dashboard**：3栏布局骨架完成 (左侧栏品种/策略/Playbook + 主Tabs多轮轨迹/K线/报告/回测 + 右侧栏 State/干预/日志)，复用 report_builder/kline/graph。
+- **backtest/engine.py**：VectorBT 最小回测引擎 (单品种资金曲线 + 指标)。
+- **报告增强**：Mermaid 决策路径 + Critique 柱状图 (真实 LLM score/rules 解析，非 fake)。
+- **Test-First**：test_backtest.py + test_dashboard.py (结构验证通过)。
+- **依赖**：streamlit/vectorbt/pyarrow/jsonschema 安装成功 (numba/llvmlite 构建问题暂用 pandas 模拟，建议 conda 环境解决)。
+
+**用户指令 "直接进入Phase3"** 已执行。当前进度 40% (Dashboard 骨架 + 报告真实数据 + 测试)。下一步：graph 持久化/人工钩子 + evaluation A/B + 完整 VectorBT + Java 骨架。保持 Web 稳定。
 
 ## Recommended Approach (推荐方案)
 采用Share链接的**6 Phase路线图**，优先**Phase 1**（Harness组件 + LangGraph重构 + 可观测性），然后Phase 2 (Playbook结构化规则引擎)。 
@@ -86,4 +93,4 @@
 - **Docs**：README添加Harness Mermaid图 + Phase进度，更新todo/remaining_work.md。
 - 符合AGENTS.md (Test-First、无gold-plating、reuse现有graph/nodes/tools、incremental commit、Chinese response)。
 
-Plan reviewed and updated with latest Share link: **直接进入 Phase 3 “杀手级”功能** (backtest VectorBT + evaluation A/B + **Streamlit 3栏 Dashboard** 详细布局 + Java 骨架 + FastAPI/Docker) + Phase 2 增强 (graph 持久化/人工钩子、报告 Mermaid/柱状图、Playbook 版本高亮、UI 按钮) 已完整补充。覆盖两个 Share 链接核心 (长期 6 Phase Harness + 本次聊天布局)、精确文件/行号复用、Test-First (新增 test_backtest.py + test_dashboard.py)。**用户指令：直接进入 Phase 3** — 优先实现 Streamlit Dashboard 骨架 (3栏 + Tabs 复用现有 report_builder/kline) + VectorBT 最小回测引擎。已就绪，开始实施 (Test-First, minimal, incremental commit/push per AGENTS.md)。
+Plan reviewed and updated: **Phase 3 “杀手级”功能进度 40%** (Dashboard 3栏骨架 + 真实 critique 评分/规则 (非 fake) + VectorBT 最小回测 + Mermaid/柱状图报告 + Test-First tests)。依赖 (numba/llvmlite) 构建问题暂用 pandas 模拟 (conda 环境推荐)。覆盖两个 Share 链接核心 (长期 6 Phase + 本次聊天布局)、精确文件/行号复用、Test-First。**按照原计划继续** (graph 持久化/人工钩子 + evaluation A/B + 完整 VectorBT)。已就绪，下一步实施。
