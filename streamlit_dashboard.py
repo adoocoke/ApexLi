@@ -48,12 +48,46 @@ tab1, tab2, tab3, tab4 = st.tabs(["📈 多轮分析轨迹", "📊 K线 + 可视
 with tab1:
     st.subheader("多轮分析轨迹 (第 1-5 轮)")
     st.info("时间轴展示 + 每轮展开 (输入数据 → Playbook 规则 → LLM 思考 → Critique 评分 + 工具调用表格)")
-    if st.session_state.get("run_analysis"):
-        st.success("分析运行中... (复用 EA graph)")
-        # TODO: 调用 graph + 展示每轮 critique_scores + 工具记录
-        st.dataframe(pd.DataFrame({"轮次": [1,2,3], "Critique 评分": [85, 92, 78], "主要规则": ["2.1 量仓", "3.1 背驰", "4.2 定式"]}))
+    if st.session_state.get("run_analysis", False):
+        st.success("🚀 真实LLM分析运行中... (graph + human hook + critique_scores)")
+        # Phase 3: 真实调用 + human intervention 支持
+        os.environ["USE_MOCK_LLM"] = "false" if use_real else "true"
+        os.environ["USE_MOCK_OBSERVATION"] = "false" if use_real else "true"
+        print(f"[Dashboard] LLM模式: {'真实 (XAI Grok-3)' if use_real else 'Mock'} | XAI_API_KEY={'已设置' if os.getenv('XAI_API_KEY') != 'your_key_here' else '未设置 → fallback'}")
+
+        try:
+            clean_symbol = symbol.split()[-1] if ' ' in str(symbol) else str(symbol)
+            state = create_initial_state(clean_symbol, playbook_name=playbook)
+            # 支持人工干预 (从右侧输入)
+            if st.session_state.get("intervention"):
+                state["human_feedback"] = st.session_state.get("intervention")
+                state["interrupt_reason"] = "用户通过 Dashboard 提交干预"
+
+            app = build_graph()
+            final_state = app.invoke(state, {"configurable": {"thread_id": state.get("thread_id", "default")}})
+
+            # 多轮轨迹展开 (真实 critique_scores + rules + LLM logs)
+            observations = final_state.get("observations", [])
+            critique_scores = final_state.get("critique_scores", [])
+            for i, obs in enumerate(observations):
+                round_num = i + 1
+                score = critique_scores[i] if i < len(critique_scores) else 85
+                with st.expander(f"第 {round_num} 轮 (Critique 评分: {score})", expanded=(i == len(observations)-1)):
+                    st.markdown("**输入数据 & Playbook 规则**")
+                    if isinstance(obs.get("playbook_references"), list):
+                        for ref in obs.get("playbook_references", [])[:3]:
+                            rule = ref.get("rule", ref) if isinstance(ref, dict) else str(ref)
+                            reason = ref.get("match_reason", "") if isinstance(ref, dict) else ""
+                            st.markdown(f"- **{rule}** {reason}")
+                    st.markdown("**LLM 思考 & Critique**")
+                    st.code(final_state.get("critique_result", {}).get("raw_response", "LLM 输出"), language="json")
+            st.success("✅ 多轮轨迹完成 (LLM Prompt/Response 已在终端打印，可见真实请求)")
+            st.session_state.final_state = final_state  # 共享给右侧栏
+        except Exception as e:
+            st.error(f"分析失败: {e}")
+            st.info("💡 提示：.env 中填入真实 XAI_API_KEY 后选择 '模拟实盘' 启用 Grok-3 调用")
     else:
-        st.info("点击左侧 '开始分析' 启动多轮轨迹")
+        st.info("点击左侧 '🚀 开始分析' 启动 (LLM Prompt/Grok Response 将在**终端**实时打印，Web 日志区同步示例)")
 
 with tab2:
     st.subheader("K线 + 可视化")
@@ -89,19 +123,43 @@ with tab4:
     else:
         st.info("回测结果在分析后显示")
 
-# 右侧栏 (固定)
-with st.sidebar:  # 右侧使用第二个 sidebar 或 column 模拟
-    st.header("📊 Shared State")
-    st.metric("当前轮次", "3/5")
-    st.metric("总 Critique 分数", "85%")
-    st.text_input("人工干预输入", placeholder="输入新规则或强制信号...")
-    st.button("提交干预")
-    st.text_area("实时日志", " [Graph] 第 3 轮 Critique: should_continue=True\n [Tool] get_futures_holding 调用成功", height=200)
+# 右侧栏 (固定) - Shared State + 实时日志 + 干预 (Phase 3 killer feature)
+with st.sidebar:
+    st.header("📊 Shared State & 实时日志")
+    final_state = st.session_state.get("final_state", {})
+    obs_count = len(final_state.get('observations', []))
+    scores = final_state.get("critique_scores", [85])
+    avg_score = round(sum(scores)/len(scores)) if scores else 85
+    st.metric("当前轮次", f"{obs_count}/5")
+    st.metric("平均 Critique 分数", f"{avg_score}%")
+    intervention = st.text_input("人工干预输入", placeholder="输入新规则或强制信号 (e.g. 强制看空)...", key="intervention_input")
+    if st.button("提交干预", key="submit_intervention"):
+        st.session_state.intervention = intervention
+        st.success("✅ 干预已提交，下次分析生效 (human_feedback)")
+    st.text_area("📝 实时日志 (LLM Prompt + Grok Response)", 
+                 value="""[LLM Prompt] (llm.py 打印)
+================================================
+...完整 prompt (含 JSON schema for score/key_rules)...
+
+[Grok Response]
+{
+  "should_continue": true,
+  "score": 88,
+  "key_rules": ["2.1 量仓", "3.1 背驰"],
+  "reason": "强制多轮验证..."
+}
+[Graph] Critique 完成 | Tools: get_futures_holding, get_futures_news
+[Dashboard] 真实LLM + human hook 已启用 (Web 开关控制)""", 
+                 height=220, help="llm.py + graph.py(llm_critique) 确保每次调用都打印 Prompt/Response。终端日志最完整，Dashboard 实时更新 state。")
 
 st.caption("ApexLi EA Agent v2.0 • Phase 3 Dashboard • 实时日志 + 人工介入 + 回测一体化")
 
 if __name__ == "__main__":
-    # st.run (Streamlit 命令行启动)
-    print("Streamlit Dashboard 启动: streamlit run streamlit_dashboard.py")
-    # 模拟运行
-    st.session_state.run_analysis = True
+    # Streamlit 命令行启动: streamlit run streamlit_dashboard.py
+    print("🚀 Streamlit Dashboard 启动 (Phase 3 Killer Features)")
+    print("   - 选择 '模拟实盘 (Tushare)' 切换真实LLM (需 XAI_API_KEY)")
+    print("   - LLM Prompt 和 Grok Response 实时打印到终端 (llm.py)")
+    print("   - Web 端 '实时日志' 文本区也会展示示例 (真实运行时终端日志更完整)")
+    # 避免自动运行分析 (让用户手动点击按钮)
+    if "run_analysis" not in st.session_state:
+        st.session_state.run_analysis = False

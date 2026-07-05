@@ -28,6 +28,10 @@ class TAState(TypedDict):
     analysis_rounds: int
     max_rounds: int
     critique_result: Optional[dict]
+    critique_scores: List[int]
     reason_count: int
     playbook_id: str
     playbook_content_sent: bool
+    human_feedback: Optional[str]
+    interrupt_reason: Optional[str]
+    feedback_log: List[dict]

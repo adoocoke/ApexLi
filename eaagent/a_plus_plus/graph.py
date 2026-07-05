@@ -55,10 +55,12 @@ def create_initial_state(symbol: str = "RB2610.SHF", playbook_name: str = "v3") 
         analysis_rounds=0,
         max_rounds=MAX_ROUNDS,
         critique_result=None,
-        critique_scores=[],  # Phase 3: 用于 Dashboard 柱状图和报告
+        critique_scores=[],  # Phase 3: Dashboard 柱状图/Mermaid + report_builder
         reason_count=0,
         playbook_id="",
         playbook_content_sent=False,
+        interrupt_reason=None,  # Phase 3: human intervention hook
+        feedback_log=[],
     )
 
 
@@ -212,62 +214,96 @@ def quality_sensor(state: TAState) -> TAState:
 
 
 def llm_critique(state: TAState) -> TAState:
-    color_print(f"\n[第 {state['iteration']} 轮] LLM Critique（Grok 审查）", Colors.HEADER)
+    """Phase 3 增强：支持 human_feedback + 打印完整 prompt/response（已由 llm.py 处理）"""
+    color_print(f"\n[第 {state.get('iteration', 1)} 轮] LLM Critique（Grok 审查）", Colors.HEADER)
 
-    prompt = f"""你是一个严格的风险审查员。
+    # Phase 3: 检查 human intervention
+    if state.get("human_feedback"):
+        color_print(f"  → 收到人工干预: {state['human_feedback']}", Colors.WARNING)
+        state.setdefault("feedback_log", []).append({
+            "round": state.get("iteration", 1),
+            "feedback": state["human_feedback"],
+            "timestamp": datetime.now().isoformat()
+        })
 
-当前状态：
-- 轮次: {state['iteration']}
-- 置信度: {state['confidence']}
-- 已发现问题: {state['issues']}
-- 最新信号: {state['signals'][-1] if state['signals'] else '无'}
+    prompt = f"""你是一个严格且专业的交易策略风险审查员。根据当前信息**自主决定是否需要继续多轮分析**（不再强制任何固定轮次）。如果数据已充分（置信度>85%、信号一致、无新风险/矛盾、工具数据足够），直接 should_continue=false 结束分析；否则继续调用工具获取更多持仓/新闻/相关品种数据。
 
-请判断是否建议继续下一轮分析，并给出理由。
+当前轮次信息：
+- 轮次: {state.get('iteration', 1)} / MAX=5
+- 置信度: {state.get('confidence', 0.6):.0%}
+- 本轮发现的问题: {state.get('issues', [])}
+- 本轮交易信号: {state.get('signals', [{}])[-1] if state.get('signals') else '无'}
+- 本轮结构化观察摘要: {state.get('observations', [{}])[-1] if state.get('observations') else '无'}
+- 人工反馈: {state.get('human_feedback', '无')}
 
-请用 JSON 返回：{{"should_continue": true/false, "reason": "..."}}"""
+请严格按照以下 JSON 格式返回（不要有任何额外文字）：
+{{
+  "should_continue": true/false,
+  "reason": "是否继续下一轮的理由（明确说明数据是否充分或需要更多工具调用）",
+  "comparison_summary": "前后轮对比的核心结论",
+  "risk_change": "上升 / 下降 / 不变",
+  "score": 85,  // 0-100 Critique 评分 (用于 Dashboard 柱状图和报告)
+  "key_rules": ["2.1 量仓分析", "3.1 背驰判断"]  // 主要规则 (真实数据)
+}}"""
 
-    system_prompt = state["messages"][0]["content"] if state["messages"] else ""
-    response = call_llm(prompt, system_prompt)
+    system_prompt = state.get("messages", [{}])[0].get("content", "") if state.get("messages") else ""
+    response = call_llm(prompt, system_prompt)  # llm.py 会打印 [LLM Prompt] + [Grok Response]
 
-    state["critique_result"] = {"raw_response": response}
+    state["critique_result"] = {"raw_response": response, "has_previous_round": len(state.get("observations", [])) >= 1}
+
+    # Phase 3: 解析真实 score/key_rules 到 state
+    try:
+        import json, re
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group(0))
+            score = int(data.get("score", 85))
+            rules = data.get("key_rules", ["规则匹配"])
+            state.setdefault("critique_scores", []).append(score)
+            state["critique_result"]["score"] = score
+            state["critique_result"]["key_rules"] = rules
+            color_print(f"  → Critique 评分: {score} | 关键规则: {rules[:2]}", Colors.OKGREEN)
+    except Exception as e:
+        state.setdefault("critique_scores", []).append(85)
+        color_print(f"  → JSON 解析失败，使用默认评分 85: {e}", Colors.WARNING)
+
     return state
 
 
 def should_continue_after_critique(state: TAState) -> Literal["continue", "finalize"]:
-    if state.get("iteration", 0) >= state.get("max_rounds", 5):
+    """Phase 3: 支持 human intervention + 真实 critique_scores 传播"""
+    iteration = state.get("iteration", 0)
+    max_rounds = state.get("max_rounds", 5)
+    if iteration >= max_rounds:
+        color_print("  → 达到最大轮次，结束分析", Colors.OKBLUE)
         return "finalize"
 
-    # 强制多轮：iteration < 4 时始终继续 (除非极高置信度)
-    iteration = state.get("iteration", 0)
-    if iteration < 4:
-        color_print(f"  → 强制多轮：第 {iteration} 轮 < 4，继续分析", Colors.OKCYAN)
-        return "continue"
+    # Phase 3 human intervention 检查
+    if state.get("interrupt_reason") or state.get("human_feedback"):
+        color_print(f"  → 人工干预触发: {state.get('interrupt_reason') or state.get('human_feedback')}", Colors.WARNING)
+        return "finalize"
 
     critique = state.get("critique_result", {})
     raw_response = critique.get("raw_response", "")
 
-    # 尝试解析 LLM 返回的 JSON
+    # 让 LLM 完全决定轮次（移除强制 <4 轮）
     try:
-        import json
-        import re as _re
-        json_match = _re.search(r"\{.*\}", raw_response, _re.DOTALL)
+        import json, re
+        json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
         if json_match:
             result = json.loads(json_match.group(0))
-            should_continue = result.get("should_continue", True)
-            risk_change = result.get("risk_change", "").lower()
-
-            if should_continue is False and iteration >= 4:
-                return "finalize"
-            if risk_change in ["上升", "显著上升", "增加"]:
-                return "continue"
+            should_continue = result.get("should_continue", False)
+            reason = result.get("reason", "")
+            color_print(f"  → LLM 决定: should_continue={should_continue} | {reason}", Colors.OKCYAN)
             return "continue" if should_continue else "finalize"
-    except Exception:
+    except Exception as e:
+        color_print(f"  → JSON 解析失败，默认结束: {e}", Colors.WARNING)
         pass
 
-    # 兜底逻辑 - 强制多轮优先
-    if "false" in raw_response.lower() and iteration >= 4:
+    # LLM 未明确返回时，默认基于置信度/问题结束（避免无限循环）
+    if state.get("confidence", 0) > 0.85 and not state.get("issues"):
         return "finalize"
-    return "continue"
+    return "finalize"  # 默认结束，让 LLM 主导
 
 def final_output(state: TAState) -> TAState:
     color_print("\n" + "="*70, Colors.BOLD)

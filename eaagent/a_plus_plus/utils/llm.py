@@ -6,8 +6,12 @@ def call_llm(prompt: str, system_prompt: str = "") -> str:
     """调用 Grok（关闭 mock 后真实调用 XAI API，USE_MOCK_LLM=false + XAI_API_KEY 必填）"""
     if os.getenv("USE_MOCK_LLM") == "true":
         import json
-        # 返回完整的 observation JSON（匹配 structured_observation 期望），避免 playbook_references 为 str 导致 format 错误
-        return json.dumps({
+        print("\n" + "=" * 60)
+        print("[LLM Prompt] (Mock 模式 - Web 开关控制)")
+        print("=" * 60)
+        print("Prompt would be sent to Grok in real mode. Returning structured JSON for testing.")
+        print("=" * 60)
+        mock_response = json.dumps({
             "phase": "上升趋势中的回调阶段",
             "trend": {"mid_term": "上升", "short_term": "震荡"},
             "key_levels": {"strong_resistance": [3050], "strong_support": [2880]},
@@ -23,15 +27,17 @@ def call_llm(prompt: str, system_prompt: str = "") -> str:
             "data_requests": [
                 {"data_type": "持仓排名", "reason": "判断主力博弈方向", "priority": "high"}
             ],
-            "score": 85,  # Phase 3 真实评分
+            "score": 85,
             "key_rules": ["2.1 量仓分析", "3.1 背驰判断"]
-        }, ensure_ascii=False)
+        }, ensure_ascii=False, indent=2)
+        print(f"[Grok Response] (Mock) {mock_response}\n")
+        return mock_response
 
     api_key = os.getenv("XAI_API_KEY")
-    if not api_key:
+    if not api_key or api_key == "your_key_here":
         import json
-        print("[LLM] WARNING: XAI_API_KEY not set, falling back to structured mock JSON (real LLM call disabled)")
-        return json.dumps({
+        print("[LLM] WARNING: XAI_API_KEY not set or placeholder, falling back to structured mock JSON (real LLM call disabled)")
+        mock_response = json.dumps({
             "phase": "上升趋势中的回调阶段",
             "trend": {"mid_term": "上升", "short_term": "震荡"},
             "key_levels": {"strong_resistance": [3050], "strong_support": [2880]},
@@ -49,7 +55,9 @@ def call_llm(prompt: str, system_prompt: str = "") -> str:
             ],
             "score": 92,
             "key_rules": ["2.1 量仓分析", "4.2 定式确认"]
-        }, ensure_ascii=False)
+        }, ensure_ascii=False, indent=2)
+        print(f"[Grok Response] (Fallback Mock) {mock_response}\n")
+        return mock_response
 
     client = OpenAI(
         api_key=api_key,
