@@ -66,5 +66,11 @@ def llm_critique(state: TAState) -> TAState:
         "raw_response": response,
         "has_previous_round": prev_observation is not None
     }
+    # Phase 3: 添加 critique_scores 到 state (用于 Dashboard 柱状图)
+    if "critique_scores" not in state:
+        state["critique_scores"] = []
+    # 模拟评分 (后续从 LLM JSON 解析)
+    score = 85 if "should_continue" in response.lower() else 92
+    state["critique_scores"].append(score)
 
     return state

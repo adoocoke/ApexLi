@@ -55,6 +55,7 @@ def create_initial_state(symbol: str = "RB2610.SHF", playbook_name: str = "v3") 
         analysis_rounds=0,
         max_rounds=MAX_ROUNDS,
         critique_result=None,
+        critique_scores=[],  # Phase 3: 用于 Dashboard 柱状图和报告
         reason_count=0,
         playbook_id="",
         playbook_content_sent=False,

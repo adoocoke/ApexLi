@@ -104,6 +104,16 @@ def build_analysis_report(
     else:
         md += "- 审查通过，继续多轮验证\n"
 
+    # Phase 3 增强：Critique 各轮评分柱状图 (Plotly) + Mermaid 决策路径
+    if "critique_scores" in final_state:
+        scores = final_state["critique_scores"]
+        md += "\n### 📊 Critique 各轮评分柱状图\n"
+        md += "```mermaid\ngantt\n    title Critique 评分趋势 (0-100)\n"
+        for i, score in enumerate(scores, 1):
+            md += f"    section 轮 {i}\n    评分 {score} : done, 0, {score}%\n"
+        md += "```\n\n"
+        md += "```python\nimport plotly.express as px\nfig = px.bar(x=list(range(1, len(scores)+1)), y=scores, labels={'x': '轮次', 'y': 'Critique 分数'})\nfig.show()\n```\n"
+
     md += f"""
 ### 📌 最终决策依据
 - **多轮路径**: 强制完成 {rounds} 轮分析 (confidence threshold 强制多轮)
