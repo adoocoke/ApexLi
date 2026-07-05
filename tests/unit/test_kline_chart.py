@@ -84,7 +84,11 @@ def test_main_contract_menu_integration():
     assert any("螺纹钢" in n or "纯碱" in n or "RB" in n or "SA" in n for n in names) or len(names) > 0
 
     # Test extract_ts_code robustness (used in btn.click and update_kline)
-    from web.app_graph import extract_ts_code
+    # Skip gradio-dependent import in unit test (test env has no gradio; function is duplicated in data_gathering.py)
+    try:
+        from web.app_graph import extract_ts_code
+    except ImportError:
+        from eaagent.a_plus_plus.nodes.data_gathering import extract_ts_code
     assert extract_ts_code("螺纹钢 RB2610.SHF") == "RB2610.SHF"
     assert extract_ts_code("纯碱 SA2609 SA2609.ZCE") == "SA2609.ZCE"
     assert extract_ts_code("RB2610 RB2610.SHF") == "RB2610.SHF"

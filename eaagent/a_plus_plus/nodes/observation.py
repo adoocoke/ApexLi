@@ -29,10 +29,15 @@ def structured_observation(state: TAState) -> TAState:
     # 【正确获取 Playbook 内容】
     playbook_content, _ = manager.load_playbook(current_playbook)
 
+    # 防止 playbook_content 或 prompt 示例中 { } 导致 f-string 解析错误 (ValueError: Invalid format specifier for str)
+    safe_playbook = str(playbook_content)
+    # 简单转义所有 { } 为双括号 (f-string 安全)
+    safe_playbook = safe_playbook.replace("{", "{{").replace("}", "}}")
+
     prompt = f"""{fortress_prompt}
 
 【当前 Playbook 完整内容】
-{playbook_content}
+{safe_playbook}
 
 以下是 {state['current_symbol']} 的日线数据（最近 {len(daily_data)} 根K线）：
 
@@ -63,11 +68,11 @@ def structured_observation(state: TAState) -> TAState:
   "trading_bias": "偏多/偏空/观望",
   "main_contradiction": "当前最主要矛盾",
   "playbook_references": [
-    {"rule": "规则标题1", "match_reason": "当前市场情况如何匹配这条规则的具体解释"},
-    {"rule": "规则标题2", "match_reason": "当前市场情况如何匹配这条规则的具体解释"}
+    {{"rule": "规则标题1", "match_reason": "当前市场情况如何匹配这条规则的具体解释"}},
+    {{"rule": "规则标题2", "match_reason": "当前市场情况如何匹配这条规则的具体解释"}}
   ],
   "data_requests": [
-    {{"data_type": "相关品种日线", "reason": "分析{state['current_symbol']}需要其高度相关的品种数据（如RB需要I/JM）", "priority": "high", "symbols": ["相关合约1", "相关合约2"]}}
+    {{"data_type": "相关品种日线", "reason": "分析当前主力合约需要其高度相关的品种数据（如RB需要I/JM）", "priority": "high", "symbols": ["相关合约1", "相关合约2"]}}
   ]
 }}
 

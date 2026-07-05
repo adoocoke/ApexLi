@@ -15,10 +15,15 @@ def data_ingestion(state: TAState) -> TAState:
 
     if use_mock:
         color_print("  → 使用 Mock 数据", Colors.WARNING)
+        # 提供少量 mock 日线数据，避免 observation 解析问题
         state["market_data"] = {
             "data_source": "MOCK",
-            "daily_df": [],  # 这里可以放 mock 日线数据
-            "data_available": False
+            "daily_df": [
+                {"trade_date": "2026-06-01", "open": 3200, "high": 3250, "low": 3180, "close": 3230, "vol": 120000, "oi": 45000},
+                {"trade_date": "2026-06-02", "open": 3230, "high": 3280, "low": 3210, "close": 3260, "vol": 135000, "oi": 46000},
+                {"trade_date": "2026-06-03", "open": 3260, "high": 3300, "low": 3240, "close": 3275, "vol": 110000, "oi": 45500},
+            ],
+            "data_available": True
         }
     else:
         color_print(f"  → 使用 Tushare 获取 {symbol} 最近5个月日线数据", Colors.OKBLUE)
