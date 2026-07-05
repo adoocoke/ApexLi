@@ -1,7 +1,11 @@
 # Plan: 参考Grok Share链接实现EA Agent架构演进 (Harness + Playbook规则引擎 + 多时间框架仲裁)
 
 ## Context (背景)
-用户提供Grok Share链接 (https://grok.com/share/c2hhcmQtNA_13ade8a3-e235-40af-bf03-2da72e00c02e)，内容为**EA Agent中长期演进大计划**（Martin Fowler Agent Harness落地、Playbook从Prompt背景→可执行规则引擎、多时间框架协同+冲突仲裁、风险内嵌、ToolRegistry、分阶段6 Phase路线图）。当前项目状态：
+用户提供两个 Grok Share 链接：
+- 原链接 (https://grok.com/share/c2hhcmQtNA_13ade8a3-e235-40af-bf03-2da72e00c02e)：**EA Agent中长期演进大计划**（Martin Fowler Agent Harness落地、Playbook规则引擎、多时间框架仲裁、6 Phase路线图）。
+- 新链接 (https://grok.com/share/c2hhcmQtNA_da56a84d-39de-4873-962f-d51d23e6c66f)：**本次聊天的布局**（Web UI/报告布局参考：实时 streaming 日志 + prompt blocks、rich Markdown Blog 风格、50% 宽度 resizable panels、Tabs 相关 K 线、Chinese 菜单、incremental live updates）。
+
+当前项目状态：
 - **Phase 0 (Web/UI)**: **100% 完成** — 中文主力合约菜单 (螺纹钢 RB2610.SHF 等)、50% 宽度富文本 Blog 报告 (多轮总结/关键规则/决策依据/News+Holding+LLM 洞察)、独立 Tabs 相关 K 线、Strategy 切换、prompt 捕获、动态 RELATED_MAP、强制多轮 (MAX_ROUNDS=5)、LLM 工具调用 (5 tools with schemas)。
 - **Phase 1 (Harness 骨架)**: **0%** — 待启动 (SteeringNode + structured AnalysisState + RulesEngine)。
 - 最新状态: git clean (c8d16f3 cleanup test stub + report tweaks), all explicit requests done, tests pass.
@@ -14,7 +18,7 @@
 - **Harness**：Guides (Playbook YAML/Pydantic)、Sensors (Tushare data_provider)、Actor (ReAct/signal_gen)、Steering (冲突仲裁 + 风险)、Memory (state + trace)。
 - **Playbook**：从markdown → 结构化规则集 (id, timeframe, condition, action, priority)，RulesEngine节点逐条验证。
 - **多时间框架**：子图/并行节点聚合共识，SteeringNode强制“一致才交易”。
-- **Web/UI (Phase 0)**：已作为快速验证完成（中文菜单 + 50% 宽度富文本报告 + Tabs K线 + Strategy 切换 + prompt 日志）。
+- **Web/UI (Phase 0)**：已作为快速验证完成（**采用新 Share 链接的聊天布局**：实时 streaming 日志 + prompt blocks、rich Markdown Blog 风格、多轮 incremental live updates、50% 宽度 resizable panels、独立 Tabs 相关 K 线、Chinese 主力合约菜单 + Strategy 下拉、prompt 完整捕获）。
 - **Test-First**：每个Phase先写integration/unit test (test_harness.py, test_rules_engine.py)，复用现有graph.py/state.py/tools.py。
 - **No gold-plating**：最小变更，先落地SteeringNode + structured Playbook，再扩展。
 
@@ -41,7 +45,7 @@
 - AGENTS.md (Test-First流程、minimal、Chinese responses)。
 
 ## Implementation Steps (5-phase workflow)
-1. **Orient & Clarify**：阅读Share链接 + 当前代码 (graph.py, state.py, observation.py, report_builder.py, AGENTS.md, todo/remaining_work.md)。确认Harness组件边界和Playbook结构 (YAML vs JSON)。
+1. **Orient & Clarify**：阅读**两个 Share 链接**（长期 Harness 计划 + 本次聊天布局参考） + 当前代码 (graph.py, state.py, observation.py, report_builder.py, AGENTS.md, todo/remaining_work.md)。确认 Harness 组件边界、Playbook 结构 (YAML vs JSON) 和 UI 布局一致性。
 2. **Slice**：Phase 0 (Web稳定验证) + Phase 1 (SteeringNode + basic Harness) 为第一slice。后续Phase 2 (RulesEngine + structured Playbook)。
 3. **Check**：运行现有test (test_kline_chart, test_futures_apis, test_graph_integration)，确认Web按钮、prompt捕获、多轮报告、K线正常。
 4. **TDD**：先写test_harness.py (SteeringNode输入输出)、test_rules_engine.py (规则验证)。然后实现state.py更新、steering.py、graph.py集成。
@@ -54,4 +58,4 @@
 - **Docs**：README添加Harness Mermaid图 + Phase进度，更新todo/remaining_work.md。
 - 符合AGENTS.md (Test-First、无gold-plating、reuse现有graph/nodes/tools、incremental commit、Chinese response)。
 
-Plan reviewed and complete. 覆盖Share链接核心 (Harness + Rules + Multi-timeframe + Risk)、当前Web状态、精确文件/行号复用、5-phase步骤、详细验证。已就绪，可执行 (从Phase 0/1开始)。
+Plan reviewed and updated with new Share link (da56a84d...): 本次聊天布局 (streaming prompt blocks + rich Markdown + resizable 50% panels + Tabs K-line) 已整合到 Phase 0 描述中。覆盖两个 Share 链接核心 (长期 Harness + 当前 UI/报告布局)、精确文件/行号复用、Test-First。已就绪，下一步启动 Phase 1 (SteeringNode)。
