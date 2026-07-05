@@ -63,8 +63,8 @@ def structured_observation(state: TAState) -> TAState:
   "trading_bias": "偏多/偏空/观望",
   "main_contradiction": "当前最主要矛盾",
   "playbook_references": [
-    "规则标题1：当前市场情况如何匹配这条规则的解释",
-    "规则标题2：当前市场情况如何匹配这条规则的解释"
+    {"rule": "规则标题1", "match_reason": "当前市场情况如何匹配这条规则的具体解释"},
+    {"rule": "规则标题2", "match_reason": "当前市场情况如何匹配这条规则的具体解释"}
   ],
   "data_requests": [
     {{"data_type": "相关品种日线", "reason": "分析{state['current_symbol']}需要其高度相关的品种数据（如RB需要I/JM）", "priority": "high", "symbols": ["相关合约1", "相关合约2"]}}
@@ -93,6 +93,20 @@ def structured_observation(state: TAState) -> TAState:
         obs_data = json.loads(response)
     except Exception:
         obs_data = {"phase": "解析失败", "playbook_references": [], "data_requests": []}
+
+    # Ensure structured playbook_references (Step 2 EA-002)
+    if isinstance(obs_data.get("playbook_references"), list):
+        for i, ref in enumerate(obs_data["playbook_references"]):
+            if isinstance(ref, str):
+                # Convert string "标题：解释" to dict
+                if "：" in ref or ":" in ref:
+                    parts = ref.split("：") if "：" in ref else ref.split(":")
+                    obs_data["playbook_references"][i] = {
+                        "rule": parts[0].strip(),
+                        "match_reason": parts[1].strip() if len(parts) > 1 else ""
+                    }
+                else:
+                    obs_data["playbook_references"][i] = {"rule": ref, "match_reason": ""}
 
     state["observations"].append(obs_data)
     color_print(f" → 本轮引用 Playbook: {obs_data.get('playbook_references', [])}", Colors.OKBLUE)

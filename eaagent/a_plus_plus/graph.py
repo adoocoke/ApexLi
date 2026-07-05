@@ -283,7 +283,7 @@ def final_output(state: TAState) -> TAState:
         refs = obs.get("playbook_references", [])
         print(f"  第 {i} 轮: {len(refs)} 条规则引用 | 主要矛盾: {obs.get('main_contradiction', 'N/A')}")
 
-    # 关键引用规则一览 (structured from Step 2)
+    # 关键引用规则一览 (structured from Step 2 EA-002)
     color_print("\n关键引用规则一览:", Colors.OKGREEN)
     all_refs = []
     for obs in state.get("observations", []):

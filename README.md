@@ -20,30 +20,33 @@
 
 | 特性 | 说明 | 状态 |
 |------|------|------|
-| **多轮强制分析** | 最多5轮，`<4`轮强制继续，质量传感器+Critique驱动 | ✅ |
-| **LLM Tools (5个)** | `get_futures_news` (实时web_search)、holding、basic、related、kline。Prompt明确理由 | ✅ |
-| **Web UI** | 中文主力菜单（螺纹钢 RB、铁矿 I、纯碱 SA...）、过滤/搜索、Strategy切换、动态K线、相关品种Tabs、**50%宽度富文本Blog报告**（新闻+Holding+LLM理解） | ✅ |
-| **透明报告** | 多轮路径、关键规则引用、📰新闻（5条+LLM弃用说明）、详细Holding、决策依据 | ✅ |
-| **Playbook驱动** | v3/zen/dow/abu + Strategy (Full/Core/IdOnly) | ✅ |
-| **测试覆盖** | Test-First (pytest), AGENTS.md 严格执行 | ✅ |
+| **多轮强制分析** | 最多5轮，`<4`轮强制继续，quality_sensor + LLM Critique驱动 | ✅ |
+| **LLM Tools (5个)** | `get_futures_holding`, `get_futures_news` (LLM web_search fallback), related, basic, kline。Prompt明确理由 | ✅ |
+| **Web UI** | **中文主力菜单**（螺纹钢 RB2610.SHF、铁矿石 I2609.DCE、纯碱 SA2609.ZCE...）、交易所过滤/搜索、Strategy切换、**动态K线 + 相关品种独立Tabs**、**50%宽度富文本Blog报告**（含新闻+Holding+LLM理解/弃用 + 多轮路径 + 关键规则 + 决策依据） | ✅ |
+| **透明 Harness** | Martin Fowler (Guides/Sensors/Actor/Steering/Memory) + LangGraph 多轮 + Playbook 规则引用 | ✅ |
+| **测试覆盖** | Test-First (pytest integration/unit), AGENTS.md 严格执行 | ✅ |
 
 ---
 
-## 快速开始
+## 快速开始 (Web UI 推荐)
 
-| 特性                  | 说明                                                                 |
-|-----------------------|----------------------------------------------------------------------|
-| **多轮自动分析**      | 默认最多进行 3 轮分析，遇到问题时自动继续优化                        |
-| **透明日志**          | 每轮都会清晰打印数据来源、参考的 Playbook 规则、质量检查结果         |
-| **Playbook 驱动**     | 自动加载 `trading_playbook_v3.md`，并在分析时展示匹配的规则          |
-| **Mock / 真实数据切换** | 通过环境变量 `USE_MOCK_OBSERVATION` 控制是否使用真实 Tushare 数据   |
-| **质量检查 (Sensors)** | 自动检测数据不足、置信度低等问题，并触发下一轮分析                   |
-| **持久化支持**        | 支持通过 `thread_id` 继续追问同一个品种                              |
-| **完整测试覆盖**      | 使用 pytest + Makefile 管理测试                                      |
+```bash
+cd eaagent
+python -m web.app_graph
+```
+
+- **Web UI**：选择中文菜单（如“螺纹钢 RB2610.SHF”）、数据源、Playbook/Strategy，点击“开始完整分析 (EA)”。
+- **输出**：富文本报告 (多轮路径总结、关键规则一览、📰新闻 + LLM理解、Holding、决策依据)、动态K线 + 相关品种Tabs、实时prompt日志。
+- **真实数据**：设置 `TUSHARE_TOKEN` 环境变量 + `USE_MOCK_OBSERVATION=false`。
+
+**CLI 备选**：
+```bash
+python -m eaagent.a_plus_plus.graph
+```
 
 ---
 
-## 快速开始
+## 快速开始 (旧版)
 
 ### 安装
 
@@ -69,21 +72,31 @@ USE_MOCK_OBSERVATION=false python -m eaagent.a_plus_plus.graph
 
 ---
 
-## 项目结构
+## 项目结构 (最新)
 
 ```
 eaagent/
-├── eaagent/
-│   ├── a_plus_plus/              # 核心增强模块（当前主力）
-│   │   ├── graph.py              # 多轮分析 + 透明日志 + Harness 核心
-│   │   ├── prompt_builder.py     # Playbook 加载
-│   │   └── tools.py
-│   ├── tools/                    # Tushare 等工具
-│   └── agent.py
-├── tests/                        # 完整测试
-├── Makefile                      # 便捷测试命令
-└── README.md
+├── eaagent/a_plus_plus/          # 核心 (LangGraph + Harness + nodes)
+│   ├── graph.py                  # StateGraph + nodes (observation, data_gathering, signal_gen, steering, critique)
+│   ├── state.py                  # TAState + AnalysisState (prompts, extra_data, multi-round)
+│   ├── nodes/                    # observation.py (prompt捕获), data_gathering.py (tools auto-call), llm_critique.py
+│   ├── tools.py                  # 5 LLM tools (holding, news with web_search, related, basic)
+│   └── strategies/               # Playbook Strategy (Full/Core/IdOnly)
+├── web/app_graph.py              # Gradio UI (中文菜单, 50%宽度Markdown报告, Tabs K线, streaming yield)
+├── web/report_builder.py         # 富文本Blog报告 (多轮总结, 关键规则, 新闻+Holding+LLM理解)
+├── tests/unit/test_kline_chart.py # Test-First for Web menu + Chinese format
+├── eaagent/tools/tushare_futures.py # VARIETY_NAME_MAP, popular/main contracts (中文+代码)
+└── docs/AGENTS.md                # Test-First, minimal, incremental commit/push
 ```
+
+**最新进展 (2026-07)**： 
+- **Web中文菜单完成**：所有主力合约显示“螺纹钢 RB2610.SHF”等格式，过滤/搜索/动态K线/相关Tabs/50%宽度富文本报告正常。
+- Test-First (`test_kline_chart.py`) + extract_ts_code 强化 (处理重复符号)。
+- 报告增强：多轮路径总结、关键规则一览、最终决策依据、新闻+Holding+LLM理解/弃用。
+- 回滚streaming后稳定同步模式，prompt捕获完整，无N/A。
+- 符合AGENTS.md + Share链接 Harness计划准备阶段。
+
+**下一步**：继续Harness Phase 1 (SteeringNode + structured state) 或 strategy-switching。
 
 ---
 
@@ -113,7 +126,9 @@ flowchart TD
     style J fill:#7c3aed,stroke:#c4b5fd
 ```
 
-**架构说明**：Martin Fowler Harness 提供结构化控制，LangGraph 实现多轮循环，5个工具通过Prompt + OpenAI Tool Calling 让LLM自主决策。报告完整展示工具结果、新闻分析和LLM reasoning。
+**架构说明**：Martin Fowler Harness (Guides=Playbook, Sensors=Tushare/tools, Actor=ReAct, Steering=冲突仲裁+风险, Memory=state+trace) 提供结构化控制。LangGraph 实现多轮 (observation → data_gathering → signal_gen → quality_sensor → critique)。5个LLM工具 (news使用web_search fallback) 通过Prompt理由 + Tool Calling 驱动。报告为富文本Blog风格，包含**多轮路径总结、关键规则一览、最终决策依据、新闻+Holding+LLM理解**。
+
+**最新更新**：Web菜单完全中文化 (`螺纹钢 RB2610.SHF`)，Test-First完成，extract_ts_code 强化 (支持重复符号)，报告50%宽度 + Tabs K线。streaming已回滚至稳定同步模式。
 
 ## 运行效果示例
 
