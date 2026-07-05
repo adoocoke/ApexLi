@@ -8,17 +8,21 @@
 当前项目状态：
 - **Phase 0 (Web/UI)**: **100% 完成** — 中文主力合约菜单 (螺纹钢 RB2610.SHF 等)、50% 宽度富文本 Blog 报告 (多轮总结/关键规则/决策依据/News+Holding+LLM 洞察)、独立 Tabs 相关 K 线、Strategy 切换、prompt 捕获、动态 RELATED_MAP、强制多轮 (MAX_ROUNDS=5)、LLM 工具调用 (5 tools with schemas)。
 - **Phase 1 (Harness 骨架)**: **0%** — 待启动 (SteeringNode + structured AnalysisState + RulesEngine)。
-- 最新状态: git clean (c8d16f3 cleanup test stub + report tweaks), all explicit requests done, tests pass.
+- 最新状态: git clean (2fa33d1 feat(phase3): LLM 自主决定分析轮次 (移除强制4轮) + human intervention hook 完善)，tests pass, LLM Prompt/Response 在终端/Web 完全可见。
 - 符合AGENTS.md (Test-First、minimal、reuse、incremental commit/push、中文回复、无新文件优先、Orient-Clarify-Slice-Check-TDD-Verify-Reflect)。
 
-此plan 已更新当前进度（Phase 0 100% 完成，Phase 1 待启动）。**Phase 3 “杀手级”功能已启动并完成第一步**（来自最新 Share 链接）：
-- **Streamlit Dashboard**：3栏布局骨架完成 (左侧栏品种/策略/Playbook + 主Tabs多轮轨迹/K线/报告/回测 + 右侧栏 State/干预/日志)，复用 report_builder/kline/graph。
-- **backtest/engine.py**：VectorBT 最小回测引擎 (单品种资金曲线 + 指标)。
-- **报告增强**：Mermaid 决策路径 + Critique 柱状图 (真实 LLM score/rules 解析，非 fake)。
-- **Test-First**：test_backtest.py + test_dashboard.py (结构验证通过)。
-- **依赖**：streamlit/vectorbt/pyarrow/jsonschema 安装成功 (numba/llvmlite 构建问题暂用 pandas 模拟，建议 conda 环境解决)。
+**Phase 3 “杀手级”功能进度更新（最新用户指令“保留现在进度。明天继续”）**：
+- **Streamlit Dashboard (3栏布局)**：**95% 完成** — 左侧控制面板（品种/策略/Playbook + “模拟实盘”开关控制真实LLM）、主Tabs（多轮轨迹可展开每轮：输入→规则→LLM思考→Critique评分+工具表）、K线、报告、回测；右侧 Shared State（实时轮次/平均Critique分数）+ 人工干预输入（提交后影响graph human_feedback）+ 实时日志区（明确指向终端 LLM Prompt/Response）。
+- **graph.py + llm_critique.py**：**增强完成** — `critique_scores` 传播、human intervention hook（interrupt_reason/feedback_log）、thread_id 持久化；**LLM 完全自主决定轮次**（移除所有强制4轮/多轮逻辑，prompt 改为“根据数据充分性自主判断 should_continue”，通常1-3轮）。
+- **真实LLM + 可见性**：llm.py 打印 `[LLM Prompt]` + `[Grok Response]`（JSON with score/key_rules）；Dashboard 集成真实 `build_graph().invoke()` + 动态 USE_MOCK 由 Web 开关控制（无硬编码）。
+- **报告增强**：Mermaid 甘特 + Critique 柱状图（真实数据，非 fake）；report_builder 解析 critique_scores/rules。
+- **Test-First**：test_dashboard.py + test_backtest.py 结构通过（Streamlit mock + pandas 回测 fallback）。
+- **backtest/engine.py**：VectorBT 最小实现（pandas fallback 解决 numba 构建问题）。
+- **依赖**：streamlit/vectorbt 已记录，XAI_API_KEY 在 .env。
 
-**用户指令 "直接进入Phase3"** 已执行。当前进度 40% (Dashboard 骨架 + 报告真实数据 + 测试)。下一步：graph 持久化/人工钩子 + evaluation A/B + 完整 VectorBT + Java 骨架。保持 Web 稳定。
+**当前进度 75%**（Dashboard + graph human/LLM自主轮次 + 真实数据/日志可见性）。**明天继续**：完善 report_builder Mermaid决策路径 + 完整 VectorBT equity curve/A-B 测试 + evaluation/ab_test.py + PDF导出。保持 Web 稳定，无 gold-plating。
+
+**用户指令 "现在强制分析到底4轮没有意义，就让llm 决定分析几轮吧"** 已完全执行（prompt + decision logic 更新，测试验证1轮结束）。下一步 graph 持久化 + 报告可视化 + 回测增强。计划就绪，保留当前状态。
 
 ## Recommended Approach (推荐方案)
 采用Share链接的**6 Phase路线图**，优先**Phase 1**（Harness组件 + LangGraph重构 + 可观测性），然后Phase 2 (Playbook结构化规则引擎)。 
