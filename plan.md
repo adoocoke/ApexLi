@@ -11,7 +11,7 @@
 - 最新状态: git clean (c8d16f3 cleanup test stub + report tweaks), all explicit requests done, tests pass.
 - 符合AGENTS.md (Test-First、minimal、reuse、incremental commit/push、中文回复、无新文件优先、Orient-Clarify-Slice-Check-TDD-Verify-Reflect)。
 
-此plan 已更新当前进度（Phase 0 100% 完成，Phase 1 待启动）。**新增 Phase 3 "杀手级" 功能（来自最新 Share 链接）**：backtest 完整回测引擎 (VectorBT)、evaluation 模块 (A/B 测试 + 样本内外验证)、Streamlit Dashboard (推荐替换/并存 app.py)、Java LangGraph4j 骨架 (java_agent/)、生产化 (FastAPI + Docker)。Phase 2 增强 (graph 持久化/人工钩子、报告 Mermaid + 柱状图、Playbook 版本/高亮、UI 按钮)。Streamlit 布局采用推荐 3 栏设计 (侧边栏选择 + 主 Tab 分析/回测 + 右栏 State/干预)。以Share链接为核心，**下一步启动 Phase 1 (Harness骨架 + SteeringNode)**，同时保持 Web 稳定。
+此plan 已更新当前进度（Phase 0 100% 完成，Phase 1 待启动）。**新增 Phase 3 "杀手级" 功能（来自最新 Share 链接）**：backtest 完整回测引擎 (VectorBT)、evaluation 模块 (A/B 测试 + 样本内外验证)、Streamlit Dashboard (推荐替换/并存 app.py)、Java LangGraph4j 骨架 (java_agent/)、生产化 (FastAPI + Docker)。Phase 2 增强 (graph 持久化/人工钩子、报告 Mermaid + 柱状图、Playbook 版本/高亮、UI 按钮)。Streamlit 布局采用推荐 3 栏设计 (侧边栏选择 + 主 Tab 分析/回测 + 右栏 State/干预)。**用户指令：直接进入 Phase 3**。以Share链接为核心，优先实现 Streamlit Dashboard 3栏布局 + backtest 引擎 (复用现有 report_builder/kline/graph)，保持 Web 稳定。
 
 ## Recommended Approach (推荐方案)
 采用Share链接的**6 Phase路线图**，优先**Phase 1**（Harness组件 + LangGraph重构 + 可观测性），然后Phase 2 (Playbook结构化规则引擎)。 
@@ -43,24 +43,24 @@
 - **工具体系 (Phase 5)**：ToolRegistry (分类 + Steering 约束)、工具调用可观测性 (参数/返回/耗时)。
 - **评估与记忆 (Phase 6)**：PostDecisionReview 节点、分层 Memory (短期轨迹 + 长期规则执行历史)、质量评分 (Playbook遵循率、冲突拦截率)。
 - **Web/UI (Phase 0)**：已作为快速验证完成（**采用新 Share 链接的聊天布局**：实时 streaming 日志 + prompt blocks、rich Markdown Blog 风格、多轮 incremental live updates、50% 宽度 resizable panels、独立 Tabs 相关 K 线、Chinese 主力合约菜单 + Strategy 下拉、prompt 完整捕获）。
-- **Test-First**：每个Phase先写integration/unit test (test_harness.py, test_rules_engine.py, test_backtest.py)，复用现有graph.py/state.py/tools.py。
-- **No gold-plating**：最小变更，先落地SteeringNode + structured Playbook + Phase 3 仲裁 + Streamlit Dashboard 骨架，再扩展。
+- **Test-First**：每个Phase先写integration/unit test (test_harness.py, test_rules_engine.py, test_backtest.py, test_dashboard.py)，复用现有graph.py/state.py/tools.py + report_builder + kline。
+- **No gold-plating**：最小变更，先落地 Streamlit Dashboard 3栏主入口 (使用现有 Gradio 报告/K线 + Streamlit 组件)，backtest VectorBT 最小引擎 (单品种资金曲线)，然后扩展 evaluation/A/B 和 Java 骨架。复用现有 critique_result、final_output、Mermaid 支持。
 
 避免循环导入、保持generator yield兼容、确保prompt捕获和50%宽度报告不回归。
 
-## Critical Files (关键文件) - 包含 Phase 3 新功能
-- `eaagent/a_plus_plus/state.py` (新AnalysisState + TimeframeAnalysis + DecisionTrace + TimeframeConsensus + critique_scores)。
-- `eaagent/a_plus_plus/nodes/steering.py` (新SteeringNode：冲突仲裁、风险评估、规则检查、多框架一致性强制、风险计算、人工介入钩子)。
-- `eaagent/a_plus_plus/graph.py:100-400` (添加Steering节点、conditional edges、subgraph支持、多时间框架并行、thread_id 持久化)。
-- `eaagent/a_plus_plus/rules_engine.py` (新RulesEngine，可复用现有quality_sensor)。
-- `eaagent/a_plus_plus/tool_registry.py` (Phase 5: ToolRegistry)。
-- `backtest/engine.py` (VectorBT 回测引擎 - 单/多品种、资金曲线 + 指标)。
-- `evaluation/` (A/B 测试、样本内外验证模块)。
-- `streamlit_dashboard.py` (新主入口 - 3栏布局：侧边栏选择 + 主 Tabs (分析轨迹/K线/报告/回测) + 右栏 State/干预/日志)。
-- `java_agent/` (LangChain4j + LangGraph4j 骨架 - 可选)。
-- `web/app_graph.py + web/report_builder.py` (Phase 0：确保prompt/多轮报告稳定，添加Harness trace + Mermaid 图 + Critique 柱状图)。
-- `tests/integration/test_harness.py + test_rules_engine.py + test_backtest.py` (Test-First)。
-- `docs/wiki/Harness-Overview.md + README.md + todo/remaining_work.md` (文档更新 + Streamlit 布局图)。
+## Critical Files (关键文件) - 包含 Phase 3 新功能 (直接进入Phase3)
+- `streamlit_dashboard.py` (**主入口** - 3栏布局：左侧栏品种/策略/Playbook + 主Tabs (多轮轨迹时间轴/K线可视化/最终报告/绩效回测) + 右侧栏 Shared State/人工干预/实时日志)。
+- `backtest/engine.py` (VectorBT 回测引擎 - 单/多品种批量、资金曲线 + Sharpe/MaxDD/WinRate 等全套指标)。
+- `evaluation/ab_test.py` (A/B 测试 Agent vs 纯规则 + 样本内外验证)。
+- `eaagent/a_plus_plus/graph.py` (增强：thread_id 持久化、人工介入钩子、Critique 评分入 State)。
+- `web/report_builder.py` (增强：添加 Mermaid 决策路径图 + Critique 各轮评分柱状图 (Plotly))。
+- `eaagent/a_plus_plus/state.py` (扩展 critique_scores + multi_timeframe_analysis)。
+- `eaagent/a_plus_plus/nodes/steering.py` (增强人工介入 + 风险)。
+- `java_agent/main.java` (LangGraph4j 骨架 - 可选)。
+- `docker/Dockerfile` + `api/main.py` (FastAPI 生产接口)。
+- `tests/integration/test_backtest.py + test_dashboard.py` (Test-First)。
+- `docs/wiki/Streamlit-Dashboard-Layout.md` (3栏布局图 + Mermaid 示例)。
+- 现有 `web/app_graph.py + web/report_builder.py + eaagent/a_plus_plus/*` (复用 kline、report、graph)。
 
 ## Existing Functions/Utilities to Reuse (带文件:行号)
 - `eaagent/a_plus_plus/graph.py:105-350` (现有nodes: observation, data_gathering, signal_generation, quality_sensor, llm_critique, final_output；复用conditional edges + should_continue)。
@@ -86,4 +86,4 @@
 - **Docs**：README添加Harness Mermaid图 + Phase进度，更新todo/remaining_work.md。
 - 符合AGENTS.md (Test-First、无gold-plating、reuse现有graph/nodes/tools、incremental commit、Chinese response)。
 
-Plan reviewed and updated with latest Share link: **Phase 3 “杀手级”功能** (backtest VectorBT + evaluation A/B + Streamlit 3栏 Dashboard 布局 + Java 骨架 + FastAPI/Docker) + Phase 2 增强 (graph 持久化/人工钩子、报告 Mermaid/柱状图、Playbook 版本高亮、UI 按钮) 已完整补充到 Recommended Approach 和 Critical Files。覆盖两个 Share 链接核心 (长期 6 Phase Harness + 本次聊天布局)、精确文件/行号复用、Test-First (新增 test_backtest.py)。已就绪，下一步启动 Phase 1 (SteeringNode + structured state) 或直接切入 Phase 3 Dashboard。
+Plan reviewed and updated with latest Share link: **直接进入 Phase 3 “杀手级”功能** (backtest VectorBT + evaluation A/B + **Streamlit 3栏 Dashboard** 详细布局 + Java 骨架 + FastAPI/Docker) + Phase 2 增强 (graph 持久化/人工钩子、报告 Mermaid/柱状图、Playbook 版本高亮、UI 按钮) 已完整补充。覆盖两个 Share 链接核心 (长期 6 Phase Harness + 本次聊天布局)、精确文件/行号复用、Test-First (新增 test_backtest.py + test_dashboard.py)。**用户指令：直接进入 Phase 3** — 优先实现 Streamlit Dashboard 骨架 (3栏 + Tabs 复用现有 report_builder/kline) + VectorBT 最小回测引擎。已就绪，开始实施 (Test-First, minimal, incremental commit/push per AGENTS.md)。
