@@ -63,13 +63,14 @@ with gr.Blocks() as demo:
         exchange_filter = gr.Dropdown(["全部", "SHF", "DCE", "CZCE"], value="全部", label="交易所过滤")
         search_box = gr.Textbox(placeholder="搜索合约 (如 RB 或 I)", label="合约搜索")
         popular_choices = get_popular_main_contracts()  # "中文 代码" format, e.g. "螺纹钢 RB2610.SHF"
-        # Extract clean ts_code for initial value to avoid "value not in choices" warning
-        initial_value = popular_choices[0].split()[-1] if popular_choices else "RB2610.SHF"
+        # Use full "中文 代码" string as value + allow_custom_value to fix Dropdown warning (value not in choices)
+        initial_value = popular_choices[0] if popular_choices else "螺纹钢 RB2610.SHF"
         popular_menu = gr.Dropdown(
             choices=popular_choices,
-            value=initial_value,  # Must match one of the choice strings exactly (full "中文 代码")
+            value=initial_value,  # Full string matches choices exactly
             label="关注主力合约 (中文显示)",
-            interactive=True
+            interactive=True,
+            allow_custom_value=True  # Prevent value not in choices warning
         )
         # 5. 移除所有活跃合约菜单 (per user request) - only popular + filters remain
         source = gr.Dropdown(["Tushare", "Mock"], value="Tushare", label="数据源")
@@ -133,13 +134,14 @@ with gr.Blocks() as demo:
     from eaagent.a_plus_plus.nodes.data_gathering import get_related_for_symbol
 
     def extract_ts_code(display_value):
-        """Robust parser for Chinese '品种 代码' or '代码 代码' (fix for SA2609 SA2609.ZCE)"""
+        """Robust parser for Chinese '品种 代码' or '代码 代码' (fix for SA2609 SA2609.ZCE / RB2610 RB2610.SHF).
+        Duplicated here for test import (avoids circular import with data_gathering)."""
         if not isinstance(display_value, str):
             return display_value
-        # Handle 'SA2609 SA2609.ZCE' or '纯碱 SA2609.ZCE' - take last valid ts_code part
+        # Handle duplicate symbols or Chinese prefix - take last valid ts_code with .
         parts = display_value.strip().split()
         for p in reversed(parts):
-            if '.' in p or any(c.isdigit() for c in p):  # ts_code pattern
+            if '.' in p or (any(c.isdigit() for c in p) and len(p) > 3):
                 return p
         return display_value  # fallback
 

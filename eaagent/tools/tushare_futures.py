@@ -146,7 +146,7 @@ def get_popular_main_contracts() -> List[str]:
         "SA2609.ZCE", "SA609.ZCE", "FG2606.ZCE", "SH2609.ZCE", "TA1001.ZCE", "AL2610.SHF", "AG2609.SHF", # SA2609.ZCE as requested + other active ZCE
         "P2609.DCE", "RM2609.CZC", "CF2609.CZC", "IC2509.CFE", "IM2509.CFE", "LC2609.SHF"
     ]
-    # Format as "中文 代码" for Dropdown display (user requirement)
+    # Format as "中文 代码" for Dropdown display (user requirement - full "螺纹钢 RB2610.SHF")
     return [f"{VARIETY_NAME_MAP.get(code.split('.')[0], code.split('.')[0])} {code}" for code in popular_codes]
 
 

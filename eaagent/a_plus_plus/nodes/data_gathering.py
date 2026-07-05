@@ -2,6 +2,19 @@ from eaagent.a_plus_plus.types import TAState
 from eaagent.a_plus_plus.utils.console import color_print, Colors
 from eaagent.tools.tushare_futures import get_related_futures_daily, get_futures_daily_with_ma
 
+
+def extract_ts_code(display_value):
+    """Robust parser for Chinese '品种 代码' or '代码 代码' (fix for SA2609 SA2609.ZCE / RB2610 RB2610.SHF).
+    Duplicated here (minimal) to avoid circular import with web/app_graph.py."""
+    if not isinstance(display_value, str):
+        return display_value
+    # Handle duplicate symbols like "RB2610 RB2610.SHF" - take last valid ts_code with .
+    parts = display_value.strip().split()
+    for p in reversed(parts):
+        if '.' in p or (any(c.isdigit() for c in p) and len(p) > 3):  # Prefer full ts_code with exchange suffix
+            return p
+    return display_value  # fallback
+
 # Move RELATED_MAP here for core EA (avoid web import in nodes)
 RELATED_MAP = {
     "RB": ["I2609.DCE", "JM2609.DCE"], "I": ["J2609.DCE", "JM2609.DCE"],
