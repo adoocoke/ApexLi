@@ -89,14 +89,23 @@ eaagent/
 └── docs/AGENTS.md                # Test-First, minimal, incremental commit/push
 ```
 
-**最新进展 (2026-07)**： 
-- **Web中文菜单完成**：所有主力合约显示“螺纹钢 RB2610.SHF”等格式，过滤/搜索/动态K线/相关Tabs/50%宽度富文本报告正常。
-- Test-First (`test_kline_chart.py`) + extract_ts_code 强化 (处理重复符号)。
-- 报告增强：多轮路径总结、关键规则一览、最终决策依据、新闻+Holding+LLM理解/弃用。
-- 回滚streaming后稳定同步模式，prompt捕获完整，无N/A。
-- 符合AGENTS.md + Share链接 Harness计划准备阶段。
+**Phase 3 Killer Features (Streamlit Dashboard - 2026-07)**
 
-**下一步**：继续Harness Phase 1 (SteeringNode + structured state) 或 strategy-switching。
+**已完成**（符合用户精确3列布局 + 真实LLM）：
+- **3列布局**：左侧控制面板（品种/策略/Playbook + Start Analysis / Simulate Live切换），主Tabs（多轮轨迹 expandable with input→rules→LLM thinking→critique score + tool table, **K线 with green↑/red↓/orange↘ Signals标注 (只MA_13)**, 最终报告 with Mermaid决策路径 + Critique柱状图, **绩效回测 with equity曲线 + 动态指标 (LLM Signals驱动)**），右侧Shared State + 实时日志 + 人工干预 + Force Stop。
+- **真实LLM驱动**：所有critique_scores、rules、Signals、backtest数据来自Grok-3 (xAI API, XAI_API_KEY), Web下拉"Tushare (真实LLM + 数据)" vs "Mock" 独占控制（无后台硬编码）。
+- **Signals**：LLM从Playbook严格推导（trend_signal/position_action全生命周期：趋势开启→卖出, 结束/震荡→卖平; 非硬编码）。5个月默认, 不足自动增量12个月 (`data_ingestion.py` + observation prompt）。
+- **K线**：只显示MA_13 (用户要求), Signals箭头标注 (绿↑买入/红↓卖出/橙↘卖平), 日期正确 (`%Y-%m-%d`), 12个月数据确认 (`len(df)=174`示例)。
+- **回测**：VectorBT (conda完整) + 动态pandas fallback，使用**同一LLM signals**映射entries/exits, Trades/WinRate/Sharpe反映真实买卖点（非固定值, 对应K线箭头）。
+- **报告**：Mermaid决策路径 (Observation→Playbook→trend_signal→Critique→Final+Backtest) + Plotly Critique柱状图 (real scores), 富文本 + Signals解释区块。
+- **日志**：终端最完整 (LLM Prompt/Response + Kline调试 + Signals匹配), Web实时日志区动态更新 (`st.session_state.live_log`)。
+- **导入修复**：pydantic_core / TypedDict extra_items / langgraph冲突 (lazy import + total=False + 延迟graph)。
+
+**当前效果**：K线干净 (只MA_13 + 清晰箭头), 回测对应LLM Signals (Trades反映K线买卖点), Web 3列布局完整, 真实LLM + Playbook推导。PDF导出pending。
+
+**最新Commit** (41db0b4): Phase 3最终优化 + 所有bug修复。符合AGENTS.md (incremental, test-first, minimal, commit/push)。
+
+*Built with transparency & real LLM. Phase 3 complete. Maintained with ❤️ by ApexLi team.*
 
 ---
 
@@ -230,7 +239,7 @@ MIT
 
 ---
 
-**最近进展 (EA-001~EA-005 + Web + Tools + Report)**
+**Phase 3 Killer Features (Streamlit Dashboard - 2026-07)**
 
 - **EA-001~EA-005**：完成质量提升计划（结构化`playbook_references` + "引用XX规则："强reason + quality_sensor软单观测 + LLM Critique早停优化 + 多轮路径总结/关键规则一览/最终决策依据）。
 - **Web UI**：中文主力合约菜单（螺纹钢 RB2610.SHF、铁矿石 I2609.DCE、纯碱 SA2609.ZCE、焦煤 JM、焦炭 J、玻璃 FG 等关注品种及其相关），支持交易所过滤、搜索、Strategy切换、动态K线 + 相关品种独立Tabs、可拖拽50%宽度报告控制台（富文本Blog风格，高度680px匹配K线）。
