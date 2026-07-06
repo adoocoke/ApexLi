@@ -77,7 +77,7 @@ def _get_mock_observation(symbol: str) -> Dict[str, Any]:
         }
     }
     data = mock_data.get(symbol.upper(), mock_data["RB2605"])
-    text = f"""【{symbol} 模拟结构化观察】
+    text = f"""[{symbol} 模拟结构化观察]
 - 最新收盘: {data['latest_price']} | 价格变化: {data['price_change']:+.2f} ({data['price_change_pct']:+.2f}%)
 - 成交量变化 {data['volume_change']:+d} ({data['volume_change_pct']:+.1f}%), 持仓量变化 {data['oi_change']:+d}
 - ATR: {data['atr']} | MA20: {data['ma20']}
@@ -226,7 +226,7 @@ def get_structured_observation(
     if df.empty:
         return {
             "symbol": symbol, "status": "error", "period": period,
-            "observation_text": f"【{symbol}】无法获取 {period} 数据"
+            "observation_text": f"[{symbol}] 无法获取 {period} 数据"
         }
 
     vol_oi = calculate_volume_oi_change(df)
@@ -239,7 +239,7 @@ def get_structured_observation(
     price_chg = round(latest["close"] - prev["close"], 2)
     price_pct = round(price_chg / prev["close"] * 100, 2) if prev["close"] > 0 else 0
 
-    text = f"""【{symbol} {period} 结构化观察】
+    text = f"""[{symbol} {period} 结构化观察]
 - 最新收盘: {latest['close']} | 价格变化: {price_chg:+.2f} ({price_pct:+.2f}%)
 - {vol_oi['summary']}
 - ATR: {atr} | MA20: {ma20}
@@ -388,7 +388,7 @@ def get_futures_news(symbol: str = "", limit: int = 5) -> Dict[str, Any]:
 
 
 def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12) -> Dict[str, Any]:
-    """【新Vision Tool - Phase 3+ Upgrade】Grok视觉K线分析
+    """New Vision Tool - Phase 3+ Upgrade: Grok视觉K线分析
     1. 获取12个月df (MA13 only, clean)
     2. 生成Plotly K线图 (reuse web.charts.kline, no signals to avoid bias)
     3. 转为base64 PNG
@@ -402,48 +402,49 @@ def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12) -> Dict[str, A
         if df.empty:
             return {"status": "error", "reason": "No K-line data", "signals": []}
 
-        # 生成干净K线图 (MA13 only, no prior signals)
+        # 生成干净K线图 (MA13 only, no prior signals) - 确保12个月数据用于图片 (用户要求)
+        # 注意: visual_analyzer已使用months=12参数，df为12个月数据
         fig = create_candlestick_chart(df.copy(), symbol, signals=None)
         if fig is None:
             return {"status": "error", "reason": "Failed to create chart", "signals": []}
 
-        # 保存为临时PNG或转为base64 (minimal file use)
+        # 保存为临时PNG (确保图片对应12个月数据)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         chart_dir = Path("artifacts/charts")
         chart_dir.mkdir(parents=True, exist_ok=True)
-        img_path = chart_dir / f"{symbol}_vision_{timestamp}.png"
+        img_path = chart_dir / f"{symbol}_vision_12mo_{timestamp}.png"
 
-        # Plotly to image (kaleido issue in env; use simple matplotlib fallback for PNG or skip to vision prompt with text df)
-        # Note: kaleido/choreographer dep conflict in conda apexli. Use text df summary + vision prompt for now (image generation pending env fix).
+        # 使用 mplfinance (可靠, 复用visualization.py) 生成12个月图片
         try:
-            # Fallback: save basic info and use text-based vision prompt (Grok can still "imagine" from description, or use mplfinance from visualization)
             from eaagent.a_plus_plus.visualization import plot_kline_with_levels
-            img_path = plot_kline_with_levels(symbol, lookback=60)  # reuse existing mplfinance PNG (no kaleido needed)
-            image_ref = img_path
-            print(f"[VisualAnalyzer] 使用 mplfinance K线图: {image_ref} (Grok vision)")
+            # 强制12个月lookback (确保图片是12个月数据)
+            img_path = plot_kline_with_levels(symbol, period="D", lookback=260)  # ~12个月交易日
+            image_ref = str(img_path)
+            print(f"[VisualAnalyzer] 12个月 mplfinance K线图生成成功: {image_ref} (用于Grok视觉分析 - 严格基于12个月数据)")
         except Exception as img_err:
-            print(f"[VisualAnalyzer] Chart generation fallback: {img_err}. Using text df for vision prompt.")
-            image_ref = None  # text-only vision (prompt includes df summary)
+            print(f"[VisualAnalyzer] Chart generation error: {img_err}. Using text df description for vision prompt.")
+            image_ref = None
 
-        if image_ref is None:
-            # Pure text fallback with df description
-            df_desc = f"OHLC summary: {len(df)} bars, latest close {df['close'].iloc[-1]:.0f}, range {df['close'].min():.0f}-{df['close'].max():.0f}"
-            vision_prompt = f"""[Text K-line Description for Vision Analysis] {df_desc}. Analyze as if viewing the chart for patterns (backchi, volume spikes, MA cross, candlestick formations). 你是一个期货K线视觉分析专家。**严格基于提供的K线图像**（完整{symbol} 12个月历史，MA13线清晰可见）结合以下Playbook规则进行视觉模式识别。"""
-            response = call_vision_llm(vision_prompt)
-        else:
-            # 强视觉+Playbook prompt (强调图像模式 + 全历史 + Playbook规则)
-            vision_prompt = f"""你是一个期货K线视觉分析专家。**严格基于提供的K线图像**（完整{symbol} 12个月历史，MA13线清晰可见）结合以下Playbook规则进行视觉模式识别。
+        # 强视觉prompt (Agent 有限选择基于图片分析, kline数据就是图片数据) - 深度思考版
+        vision_prompt = f"""你是一个期货K线视觉分析专家。**一步步思考** (CoT):
 
-【当前Playbook】
-{Path('artifacts/playbooks/trading_playbook_v3.md').read_text() if Path('artifacts/playbooks/trading_playbook_v3.md').exists() else '使用标准2.1量仓、2.3趋势判断、3.1背驰、4.2定式等核心规则。'}
+1. **描述图像**：整体趋势 (MA13走向、关键K线形态、量柱变化、背驰信号)。图片是12个月完整数据 (文件名含12mo)。
+2. **匹配Playbook**：逐根K线检查规则 (2.1量仓: 持仓增加=趋势燃料; 2.3趋势: MA13金叉=开启, 死叉=结束; 3.1背驰: 价格新高但MACD/量柱收窄; 4.2定式: 形态失效=卖平)。
+3. **输出所有匹配点**：有任何视觉+Playbook依据就交易 (4-6个signals覆盖全年); 只有完全无匹配才观望。trend_signal 独立覆盖趋势全生命周期 (开启=卖出, 结束=卖平)。
 
-**视觉任务**：
-- 扫描整张图像，识别所有高置信模式（背驰、量仓共振、趋势开启/结束、定式确认）。
-- 针对**每一根关键K线位置**输出买卖点（不止最后一根）。
-- 有视觉依据（K线形态、MA交叉、成交量柱、持仓暗示）就输出signal；无明确Playbook匹配才'观望'。
-- trend_signal必须覆盖趋势全生命周期（开启=卖出/做空，结束/震荡=卖平/减仓）。
+当前Playbook (完整核心规则):
+- 2.1量仓分析: 持仓稳步增加+价格回落 = 空头燃料 (主力增仓确认趋势)。
+- 2.3趋势判断: MA13金叉上行=趋势开启 (多头), 死叉下行=趋势结束 (卖平)。
+- 3.1背驰判断: 价格新高/新低但MACD柱/量柱面积缩小 = 趋势反转信号。
+- 4.2定式确认: 特定K线形态 (吞没, 锤头, 上影) + 量仓共振 = 高置信入场/出场。
 
-**输出严格JSON**（不要任何额外文字）：
+Few-shot (真实12个月图像例子):
+1. 图像4月8日前后: 连续阳线突破MA13 + 放量, 持仓增加 → "多头, 卖出(趋势开启), 引用2.1量仓+2.3趋势, 视觉: 突破+量能共振", confidence 88
+2. 图像5月11日: 长上影吞没 + MA13死叉 + 量柱收窄 → "空头, 卖出(趋势开启), 引用3.1背驰+2.3趋势, 视觉: 顶部反转形态", confidence 85
+3. 图像5月25日后: 阴线沿MA13下行, 无背驰 → "空头, 持仓, 引用2.3趋势延续, 视觉: 趋势中轨压价", confidence 75
+4. 图像6月23日: 底部长下影 + 量柱萎缩 + MA13趋缓 → "空头, 卖平(趋势结束), 引用3.1底部背驰+4.2定式失效, 视觉: 趋势结束信号", confidence 82
+
+**输出严格JSON** (不要任何额外文字, 只返回JSON):
 {{
   "signals": [
     {{
@@ -452,16 +453,16 @@ def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12) -> Dict[str, A
       "entry_zone": "价格区间或N/A",
       "stop_loss": "止损位或N/A",
       "target": "目标位或N/A",
-      "reason": "视觉观察: 图像中第N根K线显示[具体形态 e.g. 吞没+背驰]，结合Playbook规则2.1量仓(持仓增加+价格回落) + 3.1背驰(柱子收窄)，因此给出卖出signal。",
+      "reason": "视觉观察: 图像中第N根K线显示[具体形态 e.g. 阳线突破MA13+放量], 结合Playbook 2.1量仓(持仓增加提供燃料) + 2.3趋势判断(金叉开启), 因此给出signal。",
       "confidence": 85
     }}
-    // 至少2-5个signals覆盖全历史
+    // 输出4-6个, 覆盖全年
   ]
 }}
 
-图像已附加。请直接返回JSON。"""
+图像已附加 (12个月数据, 严格基于图片视觉)。一步步思考后直接返回JSON。"""
 
-            response = call_vision_llm(vision_prompt, image_ref)
+        response = call_vision_llm(vision_prompt, image_ref)
 
         # Parse JSON (common for both image and text fallback) - robust against None/empty
         try:
@@ -484,7 +485,8 @@ def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12) -> Dict[str, A
                 "symbol": symbol,
                 "signals": signals,
                 "image_path": str(image_ref) if 'image_ref' in locals() and image_ref else "text_fallback",
-                "source": "grok_vision"
+                "source": "grok_vision",
+                "months_used": 12
             }
         except Exception as parse_err:
             print(f"[VisualAnalyzer] JSON解析失败: {parse_err}, raw: {str(response)[:200] if response else 'None'}")

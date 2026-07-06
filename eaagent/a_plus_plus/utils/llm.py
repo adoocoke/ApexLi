@@ -14,7 +14,7 @@ def call_vision_llm(prompt: str, image_path_or_base64: str = None, system_prompt
     - 结合 Playbook 给出全历史买卖点 (signals JSON)
     - Reuse XAI client，打印完整 vision prompt/response
     """
-    if os.getenv("USE_MOCK_LLM") == "true" or True:  # Force mock for stability (XAI key/jiter issues in env)
+    if os.getenv("USE_MOCK_LLM", "true") == "true":  # Real Grok-3 vision when USE_MOCK_LLM=false + valid XAI key
         import json
         print("\n" + "=" * 80)
         print("[Vision Prompt] (Mock 模式 - Web 开关控制)")
@@ -99,10 +99,10 @@ def call_vision_llm(prompt: str, image_path_or_base64: str = None, system_prompt
 
     try:
         response = client.chat.completions.create(
-            model="grok-3",  # or grok-3-vision if available; grok-3 supports vision
+            model="grok-3",  # grok-3 supports vision
             messages=messages,
-            temperature=0.2,
-            max_tokens=1500
+            temperature=0.1,  # Lower for deeper, more deliberate reasoning
+            max_tokens=2500   # More room for step-by-step thinking + detailed reasons
         )
         result = response.choices[0].message.content.strip()
         print(f"[Grok Vision Response] {result}\n")
