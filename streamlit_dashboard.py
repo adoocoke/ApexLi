@@ -133,20 +133,24 @@ with tab4:
                 signal_info = "✅ 使用 EA LLM Signals 回测" if result.get("used_signals") else "MA crossover fallback"
                 st.success(f"{signal_info} | Trades: {result['stats']['trades']} | Sharpe: {result['stats']['sharpe_ratio']:.2f} | MaxDD: {result['stats']['max_drawdown']:.2%}")
                 
-                # 新增: Signals 具体解释 (买入/卖出点依据)
+                # 新增: Signals 具体解释 (当日 + 趋势 signal)
                 if signals:
                     latest_sig = signals[-1]
-                    st.subheader("📍 本次 Signals 判断依据 (LLM 生成)")
+                    st.subheader("📍 本次 Signals 判断依据 (LLM 生成 - 当日 + 趋势)")
                     st.markdown(f"""
-**Direction**: {latest_sig.get('direction', '观望')} (Confidence: {latest_sig.get('confidence', 'N/A')}%)
+**当日 Direction**: {latest_sig.get('direction', '观望')} (Confidence: {latest_sig.get('confidence', 'N/A')}%)
 
-**买入点 (`entry_zone`)**: {latest_sig.get('entry_zone', '未指定 - 观望或待确认')}
+**趋势 Signal** (`trend_signal`): **{latest_sig.get('trend_signal', latest_sig.get('direction', '观望'))}**  
+（下跌趋势开启 → 卖出；趋势结束/震荡 → 卖平/平仓）
+
+**买入点 (`entry_zone`)**: {latest_sig.get('entry_zone', '未指定 - 观望或趋势结束时无')}
 
 **止损/目标**: {latest_sig.get('stop_loss', 'N/A')} | {latest_sig.get('target', 'N/A')}
 
 **判断依据 (`reason`)**:  
-> {latest_sig.get('reason', 'LLM 基于 Playbook 规则 (量仓/背驰) + 5-12个月历史 + holding/news 工具结果生成')}
+> {latest_sig.get('reason', 'LLM 基于 Playbook 规则 (量仓/背驰/趋势判断) + 5-12个月历史 + holding/news/related 工具结果生成。当日 signal 与趋势 signal 独立判断，不冲突。')}
                     """)
+                    st.caption("趋势 signal 已满足要求：下跌趋势开启时给出卖出 signal，震荡/结束时给出卖平 signal（LLM 多轮判断趋势阶段）。")
                 st.info("A/B 测试: Agent (LLM Signals) vs 纯 MA 规则 (后续增强对比)")
             else:
                 st.error(f"回测失败: {result.get('reason', 'Unknown')}")

@@ -138,36 +138,41 @@ def signal_generation(state: TAState) -> TAState:
        - 明确引用 Playbook 的哪一条或哪几条规则（写出完整标题）
        - 当前行情**为什么匹配**这条规则的具体逻辑解释（结合历史数据 + 工具结果）
 
-    2. 仅在明确高置信定式（背驰、量仓共振、突破等）时给出 direction；否则严格“观望”。
+    2. **趋势跟踪要求**（两个独立要求，不冲突）：
+       - **当日 signal**：当前 K 线/观察的即时 direction（多/空/观望）。
+       - **趋势 signal**：判断**当前趋势开启到结束**（e.g. 下跌趋势开启时给出“卖出/做空” signal，在趋势结束/震荡时给出“卖平/平仓/观望” signal）。使用 5-12个月历史 + 工具数据判断趋势阶段（phase + trend.mid_term + volume_oi_linkage）。
 
     3. 输出必须严格按照以下 JSON 格式返回（不要有任何额外文字）：
 
     {{
-      "direction": "多头 / 空头 / 观望",
+      "direction": "多头 / 空头 / 观望",  // 当日即时 signal
+      "trend_signal": "卖出(趋势开启) / 卖平(趋势结束/震荡) / 持仓 / 观望",  // 新增：完整趋势判断
       "entry_zone": "入场区间描述（或无）",
       "stop_loss": "止损描述（或无）",
       "target": "目标 / 减仓区间（或无）",
-      "reason": "引用了规则X：当前行情匹配这条规则的原因...（必须包含规则引用 + 历史数据/工具匹配逻辑）",
+      "reason": "引用了规则X：...（必须包含规则引用 + 历史数据/工具匹配逻辑 + 当日signal + 趋势signal判断）",
       "confidence": 85
     }}
 
-    【Few-shot 示例】
+    【Few-shot 示例】（同时满足当日 + 趋势 signal）
 
-    示例1（高质量 reason，高置信）：
-    {{
-      "direction": "观望",
-      "reason": "引用2.3趋势判断与行情选择：当前虽处于下降趋势，但5-12个月历史未出现2B反转、头肩底或颈线突破等明确进场定式，符合‘无明确定式时主动放弃低置信度机会’的规则，因此严格执行观望。",
-      "confidence": 90
-    }}
-
-    示例2（高质量 reason）：
+    示例1（趋势下跌中）：
     {{
       "direction": "空头",
-      "reason": "引用2.1量仓分析核心逻辑：12个月历史中价格持续回落同时持仓稳步增加，符合‘持仓增加提供趋势燃料’的规则，当前空头力量占优（holding工具确认）；同时引用3.1背驰判断标准，MACD柱子面积缩小，出现趋势背驰，因此在压力位附近做空。",
-      "confidence": 82
+      "trend_signal": "卖出(趋势开启)",
+      "reason": "引用2.1量仓分析核心逻辑：12个月历史价格持续回落同时持仓稳步增加，符合‘持仓增加提供趋势燃料’的规则，当前空头力量占优（holding工具确认）；趋势处于下跌开启阶段，因此给出卖出signal（趋势signal）。当日即时方向也为空头。",
+      "confidence": 88
     }}
 
-    请严格按照以上要求输出 JSON。
+    示例2（趋势结束/震荡）：
+    {{
+      "direction": "观望",
+      "trend_signal": "卖平(趋势结束)",
+      "reason": "引用2.3趋势判断与行情选择：5-12个月历史显示下跌趋势已持续，但出现背驰 + 持仓不再增加，趋势进入结束/震荡阶段，符合‘趋势结束时卖平仓位’规则。因此给出卖平 trend_signal，当日即时 signal 为观望。",
+      "confidence": 85
+    }}
+
+    请严格按照以上要求输出 JSON（同时提供当日 direction 和趋势 trend_signal）。
     """
 
     system_prompt = state["messages"][0]["content"] if state["messages"] else ""
@@ -175,13 +180,18 @@ def signal_generation(state: TAState) -> TAState:
 
     try:
         signal_data = json.loads(response)
+        # 确保 trend_signal 字段存在（兼容旧输出）
+        if "trend_signal" not in signal_data:
+            signal_data["trend_signal"] = signal_data.get("direction", "观望")
     except json.JSONDecodeError:
         signal_data = {
             "direction": "观望",
+            "trend_signal": "观望",
             "entry_zone": "解析失败",
             "stop_loss": "解析失败",
             "target": "解析失败",
-            "reason": response
+            "reason": response,
+            "confidence": 60
         }
 
     state["signals"].append(signal_data)
