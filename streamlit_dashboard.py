@@ -105,7 +105,7 @@ See TERMINAL for full Prompt + Grok JSON + Kline annotations"""
             st.session_state.live_log = new_log
         except Exception as e:
             st.error(f"分析失败: {e}")
-            st.info("💡 提示：.env 中填入真实 XAI_API_KEY 后选择 '模拟实盘' 启用 Grok-3 调用 (当前使用Mock视觉分析，已优化JSON解析，无NoneType错误)")
+            st.info("💡 提示：.env 已填真实 XAI_API_KEY，选择 '模拟实盘 (Tushare)' 启用 Grok-3 视觉+文本调用 (JSON解析已优化，无NoneType错误)")
     else:
         st.info("点击左侧 '🚀 开始分析' 启动。**LLM Prompt/Grok Response + Kline调试在终端实时打印** (最完整)。Web日志区同步更新。")
 
@@ -121,7 +121,7 @@ with tab2:
             signals = final_state.get("signals", []) or final_state.get("observations", [{}])[-1].get("visual_signals", [])
             print(f"[Dashboard K线] 数据行数: {len(df)}, Signals数量: {len(signals)} (12个月数据已传入K线, 应有标注; visual_signals优先)")
             fig = create_candlestick_chart(df, clean_symbol, signals=signals)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)  # use_container_width deprecated in newer Streamlit, removed warning
             st.caption(f"↑ 买入 (多头/趋势开启) | ↓ 卖出 (空头) | ↘ 卖平 (趋势结束/震荡) - 基于 Playbook 规则 + 历史 + 工具 (LLM 生成)。12个月数据已传入 (len(df) = {len(df)}, signals = {len(signals)})")
         except Exception as e:
             st.error(f"K线 + Signals 标注失败: {e}")
@@ -153,11 +153,12 @@ with tab4:
                 months=12
             )
             if result["status"] == "success":
-                st.line_chart(result["equity"], use_container_width=True)
+                st.line_chart(result["equity"])  # use_container_width deprecated, removed to eliminate warning
                 stats_df = pd.DataFrame(list(result["stats"].items()), columns=["指标", "值"])
                 st.dataframe(stats_df)
                 signal_info = "✅ 使用 EA LLM Signals 回测" if result.get("used_signals") else "MA crossover fallback"
                 st.success(f"{signal_info} | Trades: {result['stats']['trades']} | Sharpe: {result['stats']['sharpe_ratio']:.2f} | MaxDD: {result['stats']['max_drawdown']:.2%}")
+                # 回测数据标记已移除 (不再显示"后面做的内容", 仅使用visual_signals)
                 
                 # 加强: 显示所有Signals的reason (用户要求 - 对应K线所有买卖点, 而非只latest)
                 if signals:
@@ -174,7 +175,7 @@ with tab4:
   > {sig.get('reason', 'LLM 基于Playbook规则推导（引用具体规则 + 历史 + 工具匹配逻辑）')}
 ---
 """)
-                    st.caption("以上所有Signals均由LLM从Playbook严格推导生成（prompt强化'必须来自Playbook' + Few-shot）。K线箭头位置与这些signal一一对应，回测使用同一组signals计算Trades/equity。")
+                    st.caption("以上所有Signals均由LLM从Playbook严格推导生成（prompt强化'必须来自Playbook' + Few-shot）。K线箭头位置与这些signal一一对应，回测使用同一组signals计算Trades/equity。回测数据标记已移除 (仅使用visual_signals, 无'后面做的内容')")
                 st.info("A/B 测试: Agent (LLM Signals) vs 纯 MA 规则 (后续增强对比)")
             else:
                 st.error(f"回测失败: {result.get('reason', 'Unknown')}")
