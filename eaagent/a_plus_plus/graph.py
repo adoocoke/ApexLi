@@ -114,7 +114,7 @@ def signal_generation(state: TAState) -> TAState:
     cur_playbook = state.get("current_playbook", "v3")
     relevant_rules = manager.get_rules(cur_playbook)
 
-    prompt = f"""你是一个严格遵守 Playbook 的期货交易决策者。**基于完整5-12个月历史数据 + 工具结果**，生成**单笔高置信交易信号**（非每个K线决策）。优先使用工具获取最新数据后再决策。
+    prompt = f"""你是一个严格遵守 Playbook 的期货交易决策者。**每天都必须基于最新K线 + 可用历史数据 + 工具结果进行判断**，生成**高置信交易信号**。即使数据有限，也要尝试给出明确买卖信号（有明确规则匹配就交易，无明确依据才观望）。优先使用工具获取最新数据后再决策。
 
 可用工具 (必须用 tool call 格式调用)：
 - get_futures_holding(ts_code): 持仓排名 (强烈推荐用于主力分析)
@@ -133,7 +133,7 @@ def signal_generation(state: TAState) -> TAState:
     【当前 Playbook】
     {manager.build_prompt(cur_playbook)}
 
-    基于以下结构化市场观察（已包含5-12个月数据），请给出**单笔高置信交易信号**：
+    基于以下结构化市场观察（已包含可用历史数据），请**每天判断**并给出**高置信交易信号**（有明确Playbook规则匹配就给出买卖信号，无明确依据才观望）：
 
     {obs}
 
@@ -141,46 +141,47 @@ def signal_generation(state: TAState) -> TAState:
 
     1. `reason` 字段必须同时包含：
        - 明确引用 Playbook 的哪一条或哪几条规则（写出完整标题）
-       - 当前行情**为什么匹配**这条规则的具体逻辑解释（结合历史数据 + 工具结果）
+       - 当前行情**为什么匹配**这条规则的具体逻辑解释（结合最新K线 + 可用历史 + 工具结果）。**如果没有明确匹配，就明确说明“无明确定式，观望”**。
 
     2. **基于 Playbook 的信号要求**（LLM 必须从 Playbook 规则中推导，而非硬编码语句）：
-       - **当日 signal** (`direction`)：当前观察的即时交易方向（多头/空头/观望）。
+       - **每天判断**：无论前一天结果如何，都基于**当前最新K线**给出`direction`（多头/空头/观望）。
        - **趋势/仓位 signal** (`trend_signal` / `position_action`)：基于 Playbook 趋势判断规则（2.3趋势判断、2.1量仓、3.1背驰等），判断**趋势开启到结束**的全生命周期：
          - 趋势**开启**（下跌趋势确认）→ “卖出/做空”。
          - 趋势**结束/震荡**（背驰、持仓不再增加、定式失效）→ “卖平/平仓/减仓/观望”。
-       - 所有 signal 必须**严格引用 Playbook 具体规则**（e.g. “引用2.1量仓分析核心逻辑：...”），并结合 5-12个月历史 + 工具数据（holding/news/related）给出明确逻辑。
+       - **有依据就交易**：如果当前K线匹配任何Playbook规则（即使数据不是完美12个月），给出明确买卖signal + 详细reason；**没有明确规则匹配或数据严重不足，才输出观望**。
+       - 所有 signal 必须**严格引用 Playbook 具体规则**（e.g. “引用2.1量仓分析核心逻辑：...”），并结合最新K线 + 可用历史 + 工具数据给出明确逻辑。
 
     3. 输出必须严格按照以下 JSON 格式返回（不要有任何额外文字，signal 必须来自 Playbook 推导）：
 
     {{
-      "direction": "多头 / 空头 / 观望",  // 当日即时 signal
+      "direction": "多头 / 空头 / 观望",  // 当日即时 signal (每天都要判断)
       "trend_signal": "卖出(趋势开启) / 卖平(趋势结束) / 持仓 / 观望",  // 趋势全生命周期判断 (必须来自Playbook)
       "entry_zone": "入场区间描述（或无）",
       "stop_loss": "止损描述（或无）",
       "target": "目标 / 减仓区间（或无）",
-      "reason": "引用了规则X（Playbook具体标题）：当前行情 + 5-12个月历史 + 工具结果匹配该规则的具体逻辑...（必须包含规则引用 + 趋势开启/结束判断）",
+      "reason": "引用了规则X（Playbook具体标题）：当前最新K线 + 可用历史 + 工具结果匹配该规则的具体逻辑...（必须包含规则引用 + 为什么交易或为什么观望）",
       "confidence": 85
     }}
 
-    【Few-shot 示例】（严格基于 Playbook 规则推导 signal）
+    【Few-shot 示例】（每天判断 + 有依据就交易）
 
-    示例1（下跌趋势开启，Playbook 2.1 + 3.1）：
+    示例1（有明确匹配，Playbook 2.1 + 3.1，即使数据有限也交易）：
     {{
       "direction": "空头",
       "trend_signal": "卖出(趋势开启)",
-      "reason": "引用2.1量仓分析核心逻辑（Playbook）：12个月历史价格持续回落同时持仓稳步增加，符合‘持仓增加提供趋势燃料’规则，holding工具确认主力增仓，当前空头力量占优；同时引用3.1背驰判断标准，MACD柱子缩小出现背驰，趋势开启阶段，因此给出卖出 signal。",
+      "reason": "引用2.1量仓分析核心逻辑（Playbook）：最新K线显示价格回落同时持仓稳步增加，符合‘持仓增加提供趋势燃料’规则，holding工具确认主力增仓，当前空头力量占优；同时引用3.1背驰判断标准，MACD柱子缩小出现背驰，趋势开启阶段，因此给出卖出 signal（即使只有6个月数据，也满足规则要求）。",
       "confidence": 88
     }}
 
-    示例2（趋势结束/震荡，Playbook 2.3）：
+    示例2（无明确匹配，严格观望）：
     {{
       "direction": "观望",
-      "trend_signal": "卖平(趋势结束)",
-      "reason": "引用2.3趋势判断与行情选择（Playbook）：5-12个月历史下跌趋势已持续，但出现背驰 + 持仓不再放大，趋势进入结束/震荡阶段，符合‘趋势结束时主动卖平仓位、无明确定式时观望’规则，因此给出卖平 trend_signal，当日即时 signal 为观望。",
-      "confidence": 85
+      "trend_signal": "观望",
+      "reason": "引用0.2 无明确定式 → 坚决输出“观望”（Playbook）：当前最新K线无分型-笔-线段-中枢-背驰完整结构，无法确认2.1量仓或3.1背驰规则，因此无明确买卖点，严格执行观望。",
+      "confidence": 90
     }}
 
-    请严格按照以上要求输出 JSON（所有 signal 必须来自 Playbook 规则推导，而非固定语句）。
+    请严格按照以上要求输出 JSON（**每天判断**，有Playbook规则匹配就给出买卖signal，无明确依据才观望）。
     """
 
     system_prompt = state["messages"][0]["content"] if state["messages"] else ""
