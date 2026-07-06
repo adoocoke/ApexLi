@@ -26,26 +26,33 @@ def data_ingestion(state: TAState) -> TAState:
             "data_available": True
         }
     else:
-        color_print(f"  → 使用 Tushare 获取 {symbol} 最近5个月日线数据", Colors.OKBLUE)
+        # Phase 3 优化: 优先5个月数据，如果不足(~80根K线)自动增量到12个月
+        months = 5
+        color_print(f"  → 使用 Tushare 获取 {symbol} 最近{months}个月日线数据", Colors.OKBLUE)
         try:
-            df = get_futures_daily_recent(symbol, months=5)
+            df = get_futures_daily_recent(symbol, months=months)
+            if df.empty or len(df) < 80:  # 5个月通常 >80根，数据不足则增量
+                color_print(f"  → 5个月数据不足 ({len(df)}条)，自动增量到12个月", Colors.WARNING)
+                df = get_futures_daily_recent(symbol, months=12)
+            
             if not df.empty:
-                color_print(f"  → 成功获取 {len(df)} 条日线数据", Colors.OKGREEN)
+                color_print(f"  → 成功获取 {len(df)} 条日线数据 (用于 LLM 生成高质量 signal)", Colors.OKGREEN)
                 state["market_data"] = {
                     "data_source": "TUSHARE",
                     "daily_df": df.to_dict(orient="records"),
                     "data_available": True,
-                    "last_update": df['trade_date'].iloc[-1] if len(df) > 0 else None
+                    "last_update": df['trade_date'].iloc[-1] if len(df) > 0 else None,
+                    "months_used": 12 if len(df) > 150 else 5
                 }
             else:
-                color_print("  → Tushare 返回空数据", Colors.WARNING)
+                color_print("  → Tushare 返回空数据，使用 Mock fallback", Colors.WARNING)
                 state["market_data"] = {
                     "data_source": "TUSHARE",
                     "daily_df": [],
                     "data_available": False
                 }
         except Exception as e:
-            color_print(f"  → 获取日线数据失败: {e}", Colors.FAIL)
+            color_print(f"  → 获取日线数据失败: {e}，使用 Mock fallback", Colors.FAIL)
             state["market_data"] = {
                 "data_source": "TUSHARE",
                 "daily_df": [],

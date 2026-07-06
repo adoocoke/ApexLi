@@ -49,7 +49,9 @@ def structured_observation(state: TAState) -> TAState:
 2. `playbook_references` 字段的每一项必须同时包含：
    - 规则完整标题
    - 当前市场情况如何匹配这条规则的具体解释（至少一句话）
-3. **工具调用优先**：如果需要额外期货数据（如持仓排名、合约基本信息、相关品种、**新闻/宏观事件**、K线），**必须先调用工具** (get_futures_holding, get_futures_basic, get_related_futures_dynamic, get_futures_news, generate_kline_chart)。可用工具已注册 (15000积分覆盖, doc_id=290 fut_holding)。调用格式为 tool call tool_name with 。如果工具缺失，输出 "NEED_TOOL: tool_name (reason)"。
+3. **工具调用优先**：如果需要额外期货数据（如持仓排名、合约基本信息、相关品种、**新闻/宏观事件**、更长历史K线），**必须先调用工具** (get_futures_holding, get_futures_basic, get_related_futures_dynamic, get_futures_news, generate_kline_chart)。可用工具已注册 (15000积分覆盖, doc_id=290 fut_holding)。调用格式为 tool call tool_name with 。如果工具缺失，输出 "NEED_TOOL: tool_name (reason for analysis)"。
+
+**数据历史要求**：优先使用完整5-12个月日线数据生成**单笔高置信交易信号**（非每个K线单独决策）。如果5个月数据不足，LLM应请求更长历史或额外工具数据。
 
 **使用理由**：
 - get_futures_holding / 仓单(fut_wsr): 判断主力持仓变化与多空博弈（增仓 vs 减仓方向）。
@@ -72,7 +74,8 @@ def structured_observation(state: TAState) -> TAState:
     {{"rule": "规则标题2", "match_reason": "当前市场情况如何匹配这条规则的具体解释"}}
   ],
   "data_requests": [
-    {{"data_type": "相关品种日线", "reason": "分析当前主力合约需要其高度相关的品种数据（如RB需要I/JM）", "priority": "high", "symbols": ["相关合约1", "相关合约2"]}}
+    {{"data_type": "相关品种日线", "reason": "分析当前主力合约需要其高度相关的品种数据（如RB需要I/JM）", "priority": "high", "symbols": ["相关合约1", "相关合约2"]}},
+    {{"data_type": "longer_history", "reason": "5个月数据不足，需要12个月完整历史来生成高置信signal", "months": 12}}
   ]
 }}
 

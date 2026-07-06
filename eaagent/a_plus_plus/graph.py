@@ -109,37 +109,36 @@ def signal_generation(state: TAState) -> TAState:
     cur_playbook = state.get("current_playbook", "v3")
     relevant_rules = manager.get_rules(cur_playbook)
 
-    prompt = f"""你是一个严格遵守 Playbook 的期货交易决策者。**优先使用工具**获取最新/相关数据后再决策。
+    prompt = f"""你是一个严格遵守 Playbook 的期货交易决策者。**基于完整5-12个月历史数据 + 工具结果**，生成**单笔高置信交易信号**（非每个K线决策）。优先使用工具获取最新数据后再决策。
 
 可用工具 (必须用 tool call 格式调用)：
-- get_futures_holding(ts_code): 持仓排名 (doc_id=290, 强烈推荐用于主力分析)
+- get_futures_holding(ts_code): 持仓排名 (强烈推荐用于主力分析)
 - get_futures_basic(exchange): 合约基本信息和主力列表
-- get_related_futures_dynamic(symbol): 动态相关品种数据 (自动匹配RB→I/JM, SA→FG/SH)
+- get_related_futures_dynamic(symbol): 动态相关品种数据 (RB→I/JM, SA→FG/SH)
 - get_futures_news(symbol, limit=5): 重要新闻/宏观政策 (驱动基本面)
 - generate_kline_chart(symbol): K线图
 
-**工具使用理由**（LLM必须理解）：
-- **News**：捕捉政策、库存、国际事件对期货价格的短期/中期驱动，避免纯技术脱离现实。
-- **get_futures_basic**：确认当前主力合约规格、历史volume，判断流动性与真实主力。
-- **Holding/仓单**：判断机构/主力仓位变化（增仓方向 = 趋势燃料），是量仓分析核心。
-- **Related**：黑色/化工系联动验证趋势一致性。
+**工具使用理由**：
+- **News/Holding**：捕捉政策、主力仓位变化（增仓=趋势燃料），避免纯技术分析。
+- **Related/Basic**：验证联动 + 合约规格/流动性。
+- 如果5个月数据不足，请求 "longer_history" (12个月)。
 
 如果需要工具但未提供, 输出 "NEED_TOOL: tool_name (reason for analysis)"。
 
     【当前 Playbook】
     {manager.build_prompt(cur_playbook)}
 
-    基于以下结构化市场观察，请给出**结构化交易建议**：
+    基于以下结构化市场观察（已包含5-12个月数据），请给出**单笔高置信交易信号**：
 
     {obs}
 
     【输出要求 - 必须严格遵守】
 
-    1. `reason` 字段必须同时包含以下两部分：
-       - 明确引用了 Playbook 的哪一条或哪几条规则（写出完整标题）
-       - 当前行情**为什么匹配**这条规则的具体逻辑解释
+    1. `reason` 字段必须同时包含：
+       - 明确引用 Playbook 的哪一条或哪几条规则（写出完整标题）
+       - 当前行情**为什么匹配**这条规则的具体逻辑解释（结合历史数据 + 工具结果）
 
-    2. 如果当前行情不符合任何明确交易定式，请输出“观望”，并在 reason 中说明判断依据。
+    2. 仅在明确高置信定式（背驰、量仓共振、突破等）时给出 direction；否则严格“观望”。
 
     3. 输出必须严格按照以下 JSON 格式返回（不要有任何额外文字）：
 
@@ -148,21 +147,24 @@ def signal_generation(state: TAState) -> TAState:
       "entry_zone": "入场区间描述（或无）",
       "stop_loss": "止损描述（或无）",
       "target": "目标 / 减仓区间（或无）",
-      "reason": "引用了规则X：当前行情匹配这条规则的原因...（必须包含规则引用 + 匹配逻辑）"
+      "reason": "引用了规则X：当前行情匹配这条规则的原因...（必须包含规则引用 + 历史数据/工具匹配逻辑）",
+      "confidence": 85
     }}
 
     【Few-shot 示例】
 
-    示例1（高质量 reason）：
+    示例1（高质量 reason，高置信）：
     {{
       "direction": "观望",
-      "reason": "引用2.3趋势判断与行情选择：当前虽处于下降趋势，但未出现2B反转、头肩底或颈线突破等明确进场定式，符合‘无明确定式时主动放弃低置信度机会’的规则，因此严格执行观望。"
+      "reason": "引用2.3趋势判断与行情选择：当前虽处于下降趋势，但5-12个月历史未出现2B反转、头肩底或颈线突破等明确进场定式，符合‘无明确定式时主动放弃低置信度机会’的规则，因此严格执行观望。",
+      "confidence": 90
     }}
 
     示例2（高质量 reason）：
     {{
       "direction": "空头",
-      "reason": "引用2.1量仓分析核心逻辑：价格持续回落同时持仓稳步增加，符合‘持仓增加提供趋势燃料’的规则，当前空头力量占优；同时引用3.1背驰判断标准，MACD柱子面积缩小，出现趋势背驰，因此在压力位附近做空。"
+      "reason": "引用2.1量仓分析核心逻辑：12个月历史中价格持续回落同时持仓稳步增加，符合‘持仓增加提供趋势燃料’的规则，当前空头力量占优（holding工具确认）；同时引用3.1背驰判断标准，MACD柱子面积缩小，出现趋势背驰，因此在压力位附近做空。",
+      "confidence": 82
     }}
 
     请严格按照以上要求输出 JSON。

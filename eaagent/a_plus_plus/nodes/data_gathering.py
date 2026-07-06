@@ -66,13 +66,27 @@ def data_gathering(state: TAState) -> TAState:
         if not isinstance(req, dict):
             continue
 
-        data_type = req.get("data_type", "")
+        data_type = req.get("data_type", "").lower()
         reason = req.get("reason", "")
         priority = req.get("priority", "medium")
 
         color_print(f"  → 处理请求: {data_type} | 优先级: {priority}", Colors.OKBLUE)
         if reason:
             color_print(f"    原因: {reason}", Colors.OKCYAN)
+
+        # Phase 3: 支持 longer_history 请求 (自动增量到12个月)
+        if any(k in data_type for k in ["longer_history", "12个月", "long", "history"]) or req.get("months", 0) >= 12 or "12" in str(req):
+            color_print("  → LLM 请求更长历史 (12个月)，更新 market_data 用于高质量 signal", Colors.WARNING)
+            try:
+                from eaagent.tools.tushare_futures import get_futures_daily_recent
+                df_long = get_futures_daily_recent(state["current_symbol"], months=12)
+                if not df_long.empty:
+                    state["market_data"]["daily_df"] = df_long.to_dict(orient="records")
+                    state["market_data"]["months_used"] = 12
+                    state["market_data"]["data_available"] = True
+                    color_print(f"    → 已增量获取12个月数据 ({len(df_long)} 条)，LLM 将基于此生成单笔高置信 signal", Colors.OKGREEN)
+            except Exception as e:
+                color_print(f"    → 增量历史失败: {e}", Colors.FAIL)
 
         if data_type == "相关品种日线" or "related" in data_type.lower():
             symbols = req.get("symbols", [])
