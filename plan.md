@@ -34,11 +34,13 @@
 - [ ] Critique **各轮评分柱状图** (Plotly 嵌入)
 - [ ] PDF/Markdown 一键导出 (reportlab 或 markdown-to-pdf)
 
-### Backtest & Evaluation (40% ✅)
-- [x] `backtest/engine.py`: VectorBT 最小引擎 (pandas fallback 解决 numba 问题，equity curve + 基本指标)
-- [ ] 完整 VectorBT (Sharpe, MaxDD, WinRate、信号标注)
-- [ ] `evaluation/ab_test.py`: Agent vs 纯规则 A/B 测试 + 样本内外验证
-- [ ] 回测 Tab 集成 (equity 曲线图 + 指标表格 + A/B 对比)
+### Backtest & Evaluation (85% ✅)
+- [x] `backtest/engine.py`: **集成 EA LLM Signals** (direction/confidence/reason → VectorBT entries/exits，高置信才交易)
+- [x] Dashboard 回测 Tab: **真实 equity 曲线** + 指标表格 + **具体解释** (买入点 `entry_zone`、止损/目标、`reason` 依据 = Playbook 规则 + 5-12个月历史 + holding/news 工具结果)
+- [x] pandas 纯模拟 fallback (解决 numba/vectorbt 缺失，Web 无报错)
+- [ ] 完整 VectorBT (position sizing、信号标注 K线、slippage)
+- [ ] `evaluation/ab_test.py`: Agent (LLM Signals) vs 纯规则 A/B 测试 + 样本内外验证
+- [ ] 增强 A/B 对比图
 
 ### Test & Docs (80% ✅)
 - [x] Test-First: `tests/integration/test_backtest.py` + `test_dashboard.py` (布局/组件断言通过)

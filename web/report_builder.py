@@ -27,10 +27,17 @@ def build_analysis_report(
 **{symbol} 多轮期货分析报告** (共 {rounds} 轮 | 数据源: {data_source} | 强制多轮验证)
 
 <div style="background: #0f1626; padding: 12px; border-radius: 8px; margin: 15px 0; font-size: 0.95em;">
-**最终交易信号**  
+**最终交易信号** (LLM 生成，基于 Playbook + 5-12个月历史 + 工具数据)  
 ```json
 {final_signal}
 ```
+
+**买入/卖出点解释**：
+- **依据**：LLM (`signal_generation` 节点) 结合 observation (phase/trend/量仓/背驰) + Playbook 规则 + 工具 (holding/news/related) 生成。
+- **买入点** (`entry_zone`): {final_signal.get('entry_zone', '未指定 (观望时无)') } — 通常在关键支撑/背驰确认位。
+- **卖出/止损** (`stop_loss`/`target`): {final_signal.get('stop_loss', '未指定')} / {final_signal.get('target', '未指定')}
+- **Reason** (核心判断): {final_signal.get('reason', 'LLM 详细推理见多轮轨迹')}
+- **Confidence**: {final_signal.get('confidence', 'N/A')}% — >70% 才用于回测 entries/exits。
 </div>
 
 ### 📊 多轮分析路径总结
