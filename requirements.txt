@@ -12,7 +12,7 @@ plotly>=5.0.0
 
 # === Phase 3 杀手级功能 (Streamlit Dashboard + VectorBT 回测) ===
 streamlit>=1.28.0
-vectorbt>=0.26.0
+vectorbt>=0.26.0  # numba/llvmlite may require conda install -c conda-forge numba llvmlite on macOS (fallback implemented)
 fastapi>=0.104.0
 uvicorn>=0.24.0
 keyring>=25.0.0  # 本地安全存储 XAI_API_KEY

@@ -114,14 +114,33 @@ with tab3:
         st.info("分析完成后显示结构化报告")
 
 with tab4:
-    st.subheader("绩效回测")
-    st.info("资金曲线图 + 指标表格 + A/B 测试对比 (VectorBT 引擎)")
-    if st.session_state.get("run_analysis"):
-        st.line_chart(pd.DataFrame({"Equity": [100, 105, 98, 112, 108]}, index=pd.date_range("2026-01-01", periods=5)))
-        st.dataframe(pd.DataFrame({"指标": ["Sharpe", "MaxDD", "WinRate"], "值": [1.45, -0.12, 0.68]}))
-        st.success("A/B 测试：Agent Sharpe 1.45 vs 纯规则 0.92")
+    st.subheader("绩效回测 (VectorBT + EA Signals)")
+    st.info("真实 equity 曲线 + 指标 (使用 LLM 生成的 signals) + A/B 测试")
+    if st.session_state.get("run_analysis") and "final_state" in st.session_state:
+        try:
+            from backtest.engine import run_backtest
+            final_state = st.session_state.final_state
+            signals = final_state.get("signals", [])
+            result = run_backtest(
+                symbol=final_state.get("current_symbol", symbol.split()[-1] if isinstance(symbol, str) and ' ' in symbol else str(symbol)),
+                signals=signals,  # 集成 EA LLM Signals (direction + confidence)
+                months=12
+            )
+            if result["status"] == "success":
+                st.line_chart(result["equity"], use_container_width=True)
+                stats_df = pd.DataFrame(list(result["stats"].items()), columns=["指标", "值"])
+                st.dataframe(stats_df)
+                signal_info = "✅ 使用 EA LLM Signals 回测" if result.get("used_signals") else "MA crossover fallback"
+                st.success(f"{signal_info} | Trades: {result['stats']['trades']} | Sharpe: {result['stats']['sharpe_ratio']:.2f} | MaxDD: {result['stats']['max_drawdown']:.2%}")
+                st.info("A/B 测试: Agent (LLM Signals) vs 纯 MA 规则 (后续增强对比)")
+            else:
+                st.error(f"回测失败: {result.get('reason', 'Unknown')}")
+                st.line_chart(pd.DataFrame({"Equity": [100, 105, 98, 112, 108]}, index=pd.date_range("2026-01-01", periods=5)))
+        except Exception as e:
+            st.error(f"回测错误: {e}")
+            st.line_chart(pd.DataFrame({"Equity": [100, 105, 98, 112, 108]}, index=pd.date_range("2026-01-01", periods=5)))
     else:
-        st.info("回测结果在分析后显示")
+        st.info("分析完成后显示真实回测曲线 (集成 EA LLM Signals → VectorBT)")
 
 # 右侧栏 (固定) - Shared State + 实时日志 + 干预 (Phase 3 killer feature)
 with st.sidebar:
