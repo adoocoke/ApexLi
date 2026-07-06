@@ -158,24 +158,22 @@ with tab4:
                 signal_info = "✅ 使用 EA LLM Signals 回测" if result.get("used_signals") else "MA crossover fallback"
                 st.success(f"{signal_info} | Trades: {result['stats']['trades']} | Sharpe: {result['stats']['sharpe_ratio']:.2f} | MaxDD: {result['stats']['max_drawdown']:.2%}")
                 
-                # 新增: Signals 具体解释 (当日 + 趋势 signal)
+                # 加强: 显示所有Signals的reason (用户要求 - 对应K线所有买卖点, 而非只latest)
                 if signals:
-                    latest_sig = signals[-1]
-                    st.subheader("📍 本次 Signals 判断依据 (LLM 生成 - 当日 + 趋势)")
-                    st.markdown(f"""
-**当日 Direction**: {latest_sig.get('direction', '观望')} (Confidence: {latest_sig.get('confidence', 'N/A')}%)
-
-**趋势/仓位 Signal** (`trend_signal` / `position_action`): **{latest_sig.get('trend_signal', latest_sig.get('position_action', latest_sig.get('direction', '观望')))}**  
-（LLM 基于 Playbook 规则判断：下跌趋势开启 → 卖出/做空；趋势结束/震荡 → 卖平/平仓/观望）
-
-**买入点 (`entry_zone`)**: {latest_sig.get('entry_zone', '未指定 - 观望或趋势结束时无')}
-
-**止损/目标**: {latest_sig.get('stop_loss', 'N/A')} | {latest_sig.get('target', 'N/A')}
-
-**判断依据 (`reason`)**:  
-> {latest_sig.get('reason', 'LLM 严格基于当前 Playbook 规则推导 signal（非硬编码）。结合5-12个月历史 + holding/news/related 工具，判断趋势开启/结束阶段。')}
-                    """)
-                    st.caption("Signal 完全由 LLM 从 Playbook 规则中推导生成（prompt 已强化 '必须来自 Playbook' + Few-shot）。当日 signal 与趋势/仓位 signal 独立判断，不冲突。")
+                    st.subheader("📍 所有 Signals 判断依据 (LLM 生成 - 对应K线所有买卖点)")
+                    st.info(f"共 {len(signals)} 个高置信Signals (与K线箭头对应, 非只最后一根K线)。以下是每个signal的完整reason（来自Playbook规则推导 + 5-12个月历史 + 工具）。")
+                    for idx, sig in enumerate(signals):
+                        st.markdown(f"""
+**Signal {idx+1}** (Confidence: {sig.get('confidence', 'N/A')}%)
+- **当日 Direction**: {sig.get('direction', '观望')}
+- **趋势/仓位 Signal**: **{sig.get('trend_signal', sig.get('position_action', sig.get('direction', '观望')))}**
+- **买入点**: {sig.get('entry_zone', '未指定')}
+- **止损/目标**: {sig.get('stop_loss', 'N/A')} | {sig.get('target', 'N/A')}
+- **判断依据 (`reason`)**:  
+  > {sig.get('reason', 'LLM 基于Playbook规则推导（引用具体规则 + 历史 + 工具匹配逻辑）')}
+---
+""")
+                    st.caption("以上所有Signals均由LLM从Playbook严格推导生成（prompt强化'必须来自Playbook' + Few-shot）。K线箭头位置与这些signal一一对应，回测使用同一组signals计算Trades/equity。")
                 st.info("A/B 测试: Agent (LLM Signals) vs 纯 MA 规则 (后续增强对比)")
             else:
                 st.error(f"回测失败: {result.get('reason', 'Unknown')}")
