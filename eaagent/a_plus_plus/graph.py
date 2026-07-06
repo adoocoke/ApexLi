@@ -324,10 +324,10 @@ def should_continue_after_critique(state: TAState) -> Literal["continue", "final
         color_print(f"  → JSON 解析失败，默认结束: {e}", Colors.WARNING)
         pass
 
-    # LLM 未明确返回时，默认基于置信度/问题结束（避免无限循环）
-    if state.get("confidence", 0) > 0.85 and not state.get("issues"):
+    # LLM 未明确返回时，默认继续（允许更多轮次生成买卖signal，而非过早结束观望）
+    if state.get("confidence", 0) > 0.92 and not state.get("issues"):
         return "finalize"
-    return "finalize"  # 默认结束，让 LLM 主导
+    return "continue"  # 默认继续，让LLM在后续轮次基于新K线给出买卖signal
 
 def final_output(state: TAState) -> TAState:
     color_print("\n" + "="*70, Colors.BOLD)
