@@ -138,41 +138,44 @@ def signal_generation(state: TAState) -> TAState:
        - 明确引用 Playbook 的哪一条或哪几条规则（写出完整标题）
        - 当前行情**为什么匹配**这条规则的具体逻辑解释（结合历史数据 + 工具结果）
 
-    2. **趋势跟踪要求**（两个独立要求，不冲突）：
-       - **当日 signal**：当前 K 线/观察的即时 direction（多/空/观望）。
-       - **趋势 signal**：判断**当前趋势开启到结束**（e.g. 下跌趋势开启时给出“卖出/做空” signal，在趋势结束/震荡时给出“卖平/平仓/观望” signal）。使用 5-12个月历史 + 工具数据判断趋势阶段（phase + trend.mid_term + volume_oi_linkage）。
+    2. **基于 Playbook 的信号要求**（LLM 必须从 Playbook 规则中推导，而非硬编码语句）：
+       - **当日 signal** (`direction`)：当前观察的即时交易方向（多头/空头/观望）。
+       - **趋势/仓位 signal** (`trend_signal` / `position_action`)：基于 Playbook 趋势判断规则（2.3趋势判断、2.1量仓、3.1背驰等），判断**趋势开启到结束**的全生命周期：
+         - 趋势**开启**（下跌趋势确认）→ “卖出/做空”。
+         - 趋势**结束/震荡**（背驰、持仓不再增加、定式失效）→ “卖平/平仓/减仓/观望”。
+       - 所有 signal 必须**严格引用 Playbook 具体规则**（e.g. “引用2.1量仓分析核心逻辑：...”），并结合 5-12个月历史 + 工具数据（holding/news/related）给出明确逻辑。
 
-    3. 输出必须严格按照以下 JSON 格式返回（不要有任何额外文字）：
+    3. 输出必须严格按照以下 JSON 格式返回（不要有任何额外文字，signal 必须来自 Playbook 推导）：
 
     {{
       "direction": "多头 / 空头 / 观望",  // 当日即时 signal
-      "trend_signal": "卖出(趋势开启) / 卖平(趋势结束/震荡) / 持仓 / 观望",  // 新增：完整趋势判断
+      "trend_signal": "卖出(趋势开启) / 卖平(趋势结束) / 持仓 / 观望",  // 趋势全生命周期判断 (必须来自Playbook)
       "entry_zone": "入场区间描述（或无）",
       "stop_loss": "止损描述（或无）",
       "target": "目标 / 减仓区间（或无）",
-      "reason": "引用了规则X：...（必须包含规则引用 + 历史数据/工具匹配逻辑 + 当日signal + 趋势signal判断）",
+      "reason": "引用了规则X（Playbook具体标题）：当前行情 + 5-12个月历史 + 工具结果匹配该规则的具体逻辑...（必须包含规则引用 + 趋势开启/结束判断）",
       "confidence": 85
     }}
 
-    【Few-shot 示例】（同时满足当日 + 趋势 signal）
+    【Few-shot 示例】（严格基于 Playbook 规则推导 signal）
 
-    示例1（趋势下跌中）：
+    示例1（下跌趋势开启，Playbook 2.1 + 3.1）：
     {{
       "direction": "空头",
       "trend_signal": "卖出(趋势开启)",
-      "reason": "引用2.1量仓分析核心逻辑：12个月历史价格持续回落同时持仓稳步增加，符合‘持仓增加提供趋势燃料’的规则，当前空头力量占优（holding工具确认）；趋势处于下跌开启阶段，因此给出卖出signal（趋势signal）。当日即时方向也为空头。",
+      "reason": "引用2.1量仓分析核心逻辑（Playbook）：12个月历史价格持续回落同时持仓稳步增加，符合‘持仓增加提供趋势燃料’规则，holding工具确认主力增仓，当前空头力量占优；同时引用3.1背驰判断标准，MACD柱子缩小出现背驰，趋势开启阶段，因此给出卖出 signal。",
       "confidence": 88
     }}
 
-    示例2（趋势结束/震荡）：
+    示例2（趋势结束/震荡，Playbook 2.3）：
     {{
       "direction": "观望",
       "trend_signal": "卖平(趋势结束)",
-      "reason": "引用2.3趋势判断与行情选择：5-12个月历史显示下跌趋势已持续，但出现背驰 + 持仓不再增加，趋势进入结束/震荡阶段，符合‘趋势结束时卖平仓位’规则。因此给出卖平 trend_signal，当日即时 signal 为观望。",
+      "reason": "引用2.3趋势判断与行情选择（Playbook）：5-12个月历史下跌趋势已持续，但出现背驰 + 持仓不再放大，趋势进入结束/震荡阶段，符合‘趋势结束时主动卖平仓位、无明确定式时观望’规则，因此给出卖平 trend_signal，当日即时 signal 为观望。",
       "confidence": 85
     }}
 
-    请严格按照以上要求输出 JSON（同时提供当日 direction 和趋势 trend_signal）。
+    请严格按照以上要求输出 JSON（所有 signal 必须来自 Playbook 规则推导，而非固定语句）。
     """
 
     system_prompt = state["messages"][0]["content"] if state["messages"] else ""
@@ -180,13 +183,16 @@ def signal_generation(state: TAState) -> TAState:
 
     try:
         signal_data = json.loads(response)
-        # 确保 trend_signal 字段存在（兼容旧输出）
+        # 确保趋势相关字段存在（兼容旧输出 + Playbook 推导）
         if "trend_signal" not in signal_data:
             signal_data["trend_signal"] = signal_data.get("direction", "观望")
+        if "position_action" not in signal_data:  # 兼容不同 playbook 输出
+            signal_data["position_action"] = signal_data.get("trend_signal", signal_data.get("direction", "观望"))
     except json.JSONDecodeError:
         signal_data = {
             "direction": "观望",
             "trend_signal": "观望",
+            "position_action": "卖平(趋势结束)",
             "entry_zone": "解析失败",
             "stop_loss": "解析失败",
             "target": "解析失败",

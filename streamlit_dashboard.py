@@ -140,17 +140,17 @@ with tab4:
                     st.markdown(f"""
 **当日 Direction**: {latest_sig.get('direction', '观望')} (Confidence: {latest_sig.get('confidence', 'N/A')}%)
 
-**趋势 Signal** (`trend_signal`): **{latest_sig.get('trend_signal', latest_sig.get('direction', '观望'))}**  
-（下跌趋势开启 → 卖出；趋势结束/震荡 → 卖平/平仓）
+**趋势/仓位 Signal** (`trend_signal` / `position_action`): **{latest_sig.get('trend_signal', latest_sig.get('position_action', latest_sig.get('direction', '观望')))}**  
+（LLM 基于 Playbook 规则判断：下跌趋势开启 → 卖出/做空；趋势结束/震荡 → 卖平/平仓/观望）
 
 **买入点 (`entry_zone`)**: {latest_sig.get('entry_zone', '未指定 - 观望或趋势结束时无')}
 
 **止损/目标**: {latest_sig.get('stop_loss', 'N/A')} | {latest_sig.get('target', 'N/A')}
 
 **判断依据 (`reason`)**:  
-> {latest_sig.get('reason', 'LLM 基于 Playbook 规则 (量仓/背驰/趋势判断) + 5-12个月历史 + holding/news/related 工具结果生成。当日 signal 与趋势 signal 独立判断，不冲突。')}
+> {latest_sig.get('reason', 'LLM 严格基于当前 Playbook 规则推导 signal（非硬编码）。结合5-12个月历史 + holding/news/related 工具，判断趋势开启/结束阶段。')}
                     """)
-                    st.caption("趋势 signal 已满足要求：下跌趋势开启时给出卖出 signal，震荡/结束时给出卖平 signal（LLM 多轮判断趋势阶段）。")
+                    st.caption("Signal 完全由 LLM 从 Playbook 规则中推导生成（prompt 已强化 '必须来自 Playbook' + Few-shot）。当日 signal 与趋势/仓位 signal 独立判断，不冲突。")
                 st.info("A/B 测试: Agent (LLM Signals) vs 纯 MA 规则 (后续增强对比)")
             else:
                 st.error(f"回测失败: {result.get('reason', 'Unknown')}")

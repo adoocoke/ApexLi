@@ -32,12 +32,15 @@ def build_analysis_report(
 {final_signal}
 ```
 
-**买入/卖出点解释**：
-- **依据**：LLM (`signal_generation` 节点) 结合 observation (phase/trend/量仓/背驰) + Playbook 规则 + 工具 (holding/news/related) 生成。
-- **买入点** (`entry_zone`): {final_signal.get('entry_zone', '未指定 (观望时无)') } — 通常在关键支撑/背驰确认位。
-- **卖出/止损** (`stop_loss`/`target`): {final_signal.get('stop_loss', '未指定')} / {final_signal.get('target', '未指定')}
-- **Reason** (核心判断): {final_signal.get('reason', 'LLM 详细推理见多轮轨迹')}
+**买入/卖出点解释**（LLM 基于 **Playbook 规则严格推导**，非硬编码）：
+- **依据**：LLM (`signal_generation`) 结合 observation (phase/trend/量仓/背驰) + **当前 Playbook 具体规则** + 工具 (holding/news/related) + 5-12个月历史生成。
+- **买入点** (`entry_zone`): {final_signal.get('entry_zone', '未指定 (观望时无)') } — 通常在关键支撑/背驰确认位（来自 Playbook 定式）。
+- **趋势/仓位 signal** (`trend_signal`): {final_signal.get('trend_signal', final_signal.get('position_action', '观望'))} — 下跌趋势开启 → 卖出；趋势结束/震荡 → 卖平（Playbook 2.3/2.1 规则判断）。
+- **卖出/止损/目标** (`stop_loss`/`target`): {final_signal.get('stop_loss', '未指定')} / {final_signal.get('target', '未指定')}
+- **Reason** (核心判断，来自 Playbook)： {final_signal.get('reason', 'LLM 详细推理见多轮轨迹')}
 - **Confidence**: {final_signal.get('confidence', 'N/A')}% — >70% 才用于回测 entries/exits。
+
+**注意**：所有 signal（包括买入/卖出/卖平）均由 LLM **从当前 Playbook 规则中推导**（prompt 已强化要求）。
 </div>
 
 ### 📊 多轮分析路径总结
