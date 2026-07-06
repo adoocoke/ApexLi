@@ -90,17 +90,21 @@ with tab1:
         st.info("点击左侧 '🚀 开始分析' 启动 (LLM Prompt/Grok Response 将在**终端**实时打印，Web 日志区同步示例)")
 
 with tab2:
-    st.subheader("K线 + 可视化")
-    st.info("动态 Plotly K 线 + 信号标注 + 持仓建议 (复用现有 kline.py)")
-    if st.session_state.get("run_analysis"):
+    st.subheader("K线 + 可视化 (LLM Signals 标注)")
+    st.info("动态 Plotly K 线 + EA LLM Signals 箭头标注 (↑买入绿 / ↓卖出红 / ↘卖平橙) + 持仓建议")
+    if st.session_state.get("run_analysis") and "final_state" in st.session_state:
         try:
-            df = get_futures_daily_with_ma(symbol.split()[-1] if ' ' in symbol else symbol, months=3)
-            fig = create_candlestick_chart(df, symbol)
+            final_state = st.session_state.final_state
+            clean_symbol = final_state.get("current_symbol", symbol.split()[-1] if isinstance(symbol, str) and ' ' in str(symbol) else str(symbol))
+            df = get_futures_daily_with_ma(clean_symbol, months=12)  # 与 Signals 历史一致
+            signals = final_state.get("signals", [])
+            fig = create_candlestick_chart(df, clean_symbol, signals=signals)  # 传入 signals 进行标注
             st.plotly_chart(fig, use_container_width=True)
+            st.caption("↑ 买入 (多头/趋势开启) | ↓ 卖出 (空头) | ↘ 卖平 (趋势结束/震荡) - 基于 Playbook 规则 + 历史 + 工具 (LLM 生成)")
         except Exception as e:
-            st.error(f"K线加载失败: {e}")
+            st.error(f"K线 + Signals 标注失败: {e}")
     else:
-        st.info("分析后显示 K 线 + 信号")
+        st.info("分析后显示 K 线 + LLM Signals 标注 (趋势开启卖出 / 结束卖平)")
 
 with tab3:
     st.subheader("最终报告")
