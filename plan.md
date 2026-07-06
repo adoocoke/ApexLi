@@ -28,11 +28,11 @@
 - [x] `llm.py`: 所有路径打印 `[LLM Prompt]` + `[Grok Response]` (Mock/Real/Fallback 均可见)
 - [x] thread_id 持久化 + MemorySaver
 
-### Report & Visualization (60% ✅)
-- [x] `report_builder.py`: 真实 `critique_scores` + rules 渲染 (Mermaid 甘特 + Plotly 柱状图代码块)
-- [ ] 完整 Mermaid **决策路径图** (带分支/score)
-- [ ] Critique **各轮评分柱状图** (Plotly 嵌入)
+### Report & Visualization (85% ✅)
+- [x] `report_builder.py`: **Mermaid 决策路径图** (趋势 signal 流程: 观察→Playbook匹配→趋势开启卖出/结束卖平) + Critique 柱状图 (Plotly 代码块) + 真实 scores/rules
+- [x] Web 报告 + 回测 Tab: 详细 Signals 解释 (Playbook 推导 + 买入/卖出/卖平依据)
 - [ ] PDF/Markdown 一键导出 (reportlab 或 markdown-to-pdf)
+- [ ] 进一步可视化 (K线信号标注 + confidence 热力图)
 
 ### Backtest & Evaluation (85% ✅)
 - [x] `backtest/engine.py`: **集成 EA LLM Signals** (direction/confidence/reason → VectorBT entries/exits，高置信才交易)

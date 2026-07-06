@@ -114,19 +114,31 @@ def build_analysis_report(
     else:
         md += "- 审查通过，继续多轮验证\n"
 
-    # Phase 3 真实数据：Critique 各轮评分柱状图 (Plotly) + Mermaid 决策路径
+    # Phase 3 增强：Mermaid 决策路径图 (趋势 signal 流程) + Critique 柱状图
     scores = final_state.get("critique_scores", [85, 92, 78])
     rules = []
     for obs in final_state.get("observations", []):
         if isinstance(obs.get("playbook_references"), list):
             rules.extend([r.get("rule", "规则") for r in obs.get("playbook_references", []) if isinstance(r, dict)])
-    md += "\n### 📊 Critique 各轮评分柱状图 + 主要规则\n"
-    md += "```mermaid\ngantt\n    title Critique 评分趋势 (0-100) + 主要规则命中\n"
-    for i, score in enumerate(scores, 1):
-        rule = rules[i-1] if i-1 < len(rules) else "规则匹配"
-        md += f"    section 轮 {i}\n    评分 {score} : done, 0, {score}%\n    {rule} : active, 0, 100%\n"
+    
+    # Mermaid 决策路径 (趋势开启/结束 + signal)
+    md += "\n### 📈 决策路径 Mermaid 图 (趋势 signal 流程)\n"
+    md += "```mermaid\ngraph TD\n"
+    md += "    A[Observation: 5-12个月数据 + Tools] --> B{Playbook 规则匹配?}\n"
+    md += "    B -->|背驰/量仓共振| C[趋势开启 → 卖出/做空 signal]\n"
+    md += "    B -->|背驰消失/持仓不再增加| D[趋势结束/震荡 → 卖平/平仓 signal]\n"
+    md += "    C --> E[Critique 审查 + Confidence]\n"
+    md += "    D --> E\n"
+    md += "    E --> F[Final Output + Backtest]\n"
+    md += "    style C fill:#ff4444,stroke:#333\n"
+    md += "    style D fill:#44aa44,stroke:#333\n"
     md += "```\n\n"
-    md += "```python\nimport plotly.express as px\nfig = px.bar(x=list(range(1, len(scores)+1)), y=scores, labels={'x': '轮次', 'y': 'Critique 分数'}, title='Critique 评分趋势')\nfig.show()\n```\n"
+
+    md += "### 📊 Critique 各轮评分柱状图 + 主要规则\n"
+    md += "```python\nimport plotly.express as px\n"
+    md += f"scores = {scores}\n"
+    md += "fig = px.bar(x=list(range(1, len(scores)+1)), y=scores, labels={{'x': '轮次', 'y': 'Critique 分数'}}, title='Critique 评分趋势 (0-100)')\n"
+    md += "fig.show()\n```\n"
     md += f"**主要规则命中** ({len(set(rules))} 独特): {list(set(rules))[:5]}\n"
 
     md += f"""
