@@ -36,13 +36,13 @@ def test_valid_dataframe_returns_figure():
 def test_empty_dataframe_returns_none():
     df = pd.DataFrame()
     fig = create_candlestick_chart(df)
-    assert fig is None
+    assert isinstance(fig, go.Figure)  # Updated: returns empty Figure (not None) to prevent Streamlit "figure_or_data" error
 
 
 def test_missing_required_columns_returns_none():
     df = pd.DataFrame({'trade_date': pd.date_range('2026-01-01', periods=10)})
     fig = create_candlestick_chart(df)
-    assert fig is None
+    assert isinstance(fig, go.Figure)  # Updated: returns empty Figure (not None) to prevent Streamlit "figure_or_data" error
 
 
 def test_column_name_mapping():
@@ -55,7 +55,7 @@ def test_column_name_mapping():
 def test_too_few_rows_returns_none():
     df = make_sample_df(1)
     fig = create_candlestick_chart(df)
-    assert fig is None
+    assert isinstance(fig, go.Figure)  # Updated: returns empty Figure (not None) to prevent Streamlit "figure_or_data" error
 
 
 def test_with_nan_values():
