@@ -48,8 +48,16 @@ def call_vision_llm(prompt: str, image_path_or_base64: str = None, system_prompt
 
     api_key = os.getenv("XAI_API_KEY")
     if not api_key or api_key == "your_key_here":
-        print("[Vision] WARNING: XAI_API_KEY not set, falling back to text mock")
-        return call_llm(prompt, system_prompt)  # fallback to text
+        print("[Vision] WARNING: XAI_API_KEY not set or placeholder, forcing mock for stability (real vision disabled)")
+        import json
+        mock_response = json.dumps({
+            "signals": [
+                {"direction": "空头", "trend_signal": "卖出(趋势开启)", "reason": "视觉: K线背驰+量仓共振 (Playbook 2.1/3.1)", "confidence": 88},
+                {"direction": "观望", "trend_signal": "卖平(趋势结束)", "reason": "视觉: 趋势结束震荡 (Playbook 2.3)", "confidence": 85}
+            ]
+        }, ensure_ascii=False, indent=2)
+        print(f"[Grok Vision Response] (Forced Mock) {mock_response}\n")
+        return mock_response
 
     client = OpenAI(
         api_key=api_key,

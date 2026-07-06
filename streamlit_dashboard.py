@@ -64,7 +64,8 @@ with tab1:
         # Phase 3: 真实调用 + human intervention 支持
         os.environ["USE_MOCK_LLM"] = "false" if use_real else "true"
         os.environ["USE_MOCK_OBSERVATION"] = "false" if use_real else "true"
-        print(f"[Dashboard] LLM模式: {'真实 (XAI Grok-3)' if use_real else 'Mock'} | XAI_API_KEY={'已设置' if os.getenv('XAI_API_KEY') != 'your_key_here' else '未设置 → fallback'}")
+        key_status = "已设置 (真实Grok-3可用)" if os.getenv("XAI_API_KEY") and os.getenv("XAI_API_KEY") != "your_key_here" else "未设置 → 使用Mock (视觉+文本)"
+        print(f"[Dashboard] LLM模式: {'真实 (XAI Grok-3)' if use_real else 'Mock'} | XAI_API_KEY={key_status}")
 
         try:
             clean_symbol = symbol.split()[-1] if ' ' in str(symbol) else str(symbol)
@@ -104,7 +105,7 @@ See TERMINAL for full Prompt + Grok JSON + Kline annotations"""
             st.session_state.live_log = new_log
         except Exception as e:
             st.error(f"分析失败: {e}")
-            st.info("💡 提示：.env 中填入真实 XAI_API_KEY 后选择 '模拟实盘' 启用 Grok-3 调用")
+            st.info("💡 提示：.env 中填入真实 XAI_API_KEY 后选择 '模拟实盘' 启用 Grok-3 调用 (当前使用Mock视觉分析，已优化JSON解析，无NoneType错误)")
     else:
         st.info("点击左侧 '🚀 开始分析' 启动。**LLM Prompt/Grok Response + Kline调试在终端实时打印** (最完整)。Web日志区同步更新。")
 

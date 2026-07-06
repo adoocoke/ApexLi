@@ -113,14 +113,12 @@ def structured_observation(state: TAState) -> TAState:
         print("[Observation] Visual fallback to text LLM analysis")
         response = call_llm(prompt, system_prompt)
         try:
-            obs_data = json.loads(response)
+            if isinstance(response, str) and response.strip():
+                obs_data = json.loads(response)
+            else:
+                obs_data = {"phase": "解析失败", "playbook_references": [], "data_requests": []}
         except Exception:
             obs_data = {"phase": "解析失败", "playbook_references": [], "data_requests": []}
-
-    try:
-        obs_data = json.loads(response)
-    except Exception:
-        obs_data = {"phase": "解析失败", "playbook_references": [], "data_requests": []}
 
     # Ensure structured playbook_references (Step 2 EA-002) + vision compatibility
     if isinstance(obs_data.get("playbook_references"), list):
