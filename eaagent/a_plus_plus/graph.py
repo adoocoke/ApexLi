@@ -196,14 +196,24 @@ def signal_generation(state: TAState) -> TAState:
     system_prompt = state["messages"][0]["content"] if state["messages"] else ""
     response = call_llm(prompt, system_prompt)
 
+    print(f"[SignalGen] LLM response received (type: {type(response)}, len: {len(str(response)) if response else 0})")
+
     try:
-        signal_data = json.loads(response)
+        if not isinstance(response, str) or not response.strip():
+            response = '{"signals": []}'  # safe default to prevent NoneType
+        import re
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            signal_data = json.loads(json_match.group(0))
+        else:
+            signal_data = json.loads(response)
         # 确保趋势相关字段存在（兼容旧输出 + Playbook 推导）
         if "trend_signal" not in signal_data:
             signal_data["trend_signal"] = signal_data.get("direction", "观望")
         if "position_action" not in signal_data:  # 兼容不同 playbook 输出
             signal_data["position_action"] = signal_data.get("trend_signal", signal_data.get("direction", "观望"))
-    except json.JSONDecodeError:
+    except Exception as e:  # Catch all (JSONDecodeError, TypeError for None, etc.)
+        print(f"[SignalGen] JSON parse failed: {type(e).__name__}: {e}. Raw preview: {str(response)[:150] if response else 'None'}")
         signal_data = {
             "direction": "观望",
             "trend_signal": "观望",
@@ -211,9 +221,21 @@ def signal_generation(state: TAState) -> TAState:
             "entry_zone": "解析失败",
             "stop_loss": "解析失败",
             "target": "解析失败",
-            "reason": response,
+            "reason": str(response) if response else "LLM returned None - using visual signals from observation",
             "confidence": 60
         }
+
+    # If visual_signals already in state from observation, prefer them (Phase 3 vision upgrade)
+    if not state.get("signals") and state.get("observations"):
+        last_obs = state["observations"][-1]
+        if last_obs.get("visual_signals"):
+            print(f"[SignalGen] Using visual_signals from observation (4 signals)")
+            state["signals"] = last_obs["visual_signals"]
+            signal_data = last_obs["visual_signals"][0] if last_obs["visual_signals"] else signal_data
+
+    state["signals"].append(signal_data)
+    state["confidence"] = round(0.65 + (state["iteration"] * 0.08), 2)
+    return state
 
     state["signals"].append(signal_data)
     state["confidence"] = round(0.65 + (state["iteration"] * 0.08), 2)
