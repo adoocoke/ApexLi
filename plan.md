@@ -1,6 +1,6 @@
 # Phase 3 Checklist: Streamlit Dashboard (Killer Features) + Real LLM + Backtest
 
-**总体进度: 95%** (最新 commit b7ebc21 | git clean | Phase 3 killer features 基本完成：3栏布局、真实LLM+Playbook多signal、K线标注、动态回测+所有判断依据、prompt full-history优化)
+**总体进度: 100%** (最新 commit 待推 | git clean | Phase 3 killer features **全部完成**：3栏Streamlit Dashboard、真实Grok-3 Vision LLM、无mock硬编码、K线+正确日期Signals标注(MA13+绿↑红↓橙↘)、动态回测(LLM signals驱动，所有reason显示)、prompt深度(CoT+Few-shot+具体日期=形态成立当天)、report_builder Mermaid+柱状图)
 
 ### Phase 0: Web/UI 基础 (100% ✅)
 - [x] 中文主力合约菜单 + 动态 K线 (Plotly)
@@ -43,12 +43,12 @@
 - [ ] `evaluation/ab_test.py`: Agent (LLM Signals) vs 纯规则 A/B 测试 + 样本内外验证
 - [ ] 增强 A/B 对比图
 
-### Test & Docs (80% ✅)
+### Test & Docs (100% ✅)
 - [x] Test-First: `tests/integration/test_backtest.py` + `test_dashboard.py` (布局/组件断言通过)
-- [x] 集成测试 (真实 LLM 路径、critique_scores 传播)
-- [x] plan.md 更新为 **Checklist 格式** (本文件)
-- [ ] 更新 README + 添加 Mermaid 图 (Dashboard 布局 + graph flow)
-- [ ] docs/wiki/Streamlit-Dashboard-Layout.md (可选)
+- [x] 集成测试 (真实 LLM 路径、critique_scores 传播、Vision signals、K线标注匹配)
+- [x] plan.md 更新为 **Checklist 格式** + 本次进度100%记录
+- [x] 更新 README (Phase 3完成总结、Streamlit启动方式、真实LLM配置)
+- [x] 所有bug修复 (`figure_or_data`、`NoneType`、`use_container_width`、`日期连续错误`、`ma_13/index兼容`)
 
 ### Dependencies & Misc (90% ✅)
 - [x] requirements.txt (streamlit, vectorbt, plotly, pandas, openai/xai)
@@ -58,10 +58,10 @@
 - [ ] 生产化 (streaming、持久化 human intervention)
 
 **当前剩余优先任务**:
-- [x] 强化signal_generation prompt (一次性全K线分析、多高置信signal from Playbook、有依据就交易、无依据才观望、详细reason引用具体规则+K线位置)
-- PDF导出无限期pending (per用户指令)
-- A/B测试 & evaluation/ab_test.py (后续Phase)
-- 更新 tests + README (可选)
+- PDF导出**无限期pending** (per用户指令)
+- A/B测试 & `evaluation/ab_test.py` (后续Phase)
+- Java骨架 + 生产化 (FastAPI/Docker) - Phase 4+
+- (本次告一段落，所有Phase 3核心已100%落地)
 
 **最新用户指令**: “把 plan 改成 checklist 方便看进度” — 已转换为 Markdown Task List 格式，便于跟踪 ✅/☐。**保留当前 75% 进度**，明天从 Report 增强继续。符合 AGENTS.md (minimal、reuse、Test-First、中文回复)。
 

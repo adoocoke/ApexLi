@@ -117,7 +117,8 @@ def structured_observation(state: TAState) -> TAState:
                 obs_data = json.loads(response)
             else:
                 obs_data = {"phase": "解析失败", "playbook_references": [], "data_requests": []}
-        except Exception:
+        except Exception as e:
+            print(f"[Observation] JSON parse error in fallback: {e}")
             obs_data = {"phase": "解析失败", "playbook_references": [], "data_requests": []}
 
     # Ensure structured playbook_references (Step 2 EA-002) + vision compatibility

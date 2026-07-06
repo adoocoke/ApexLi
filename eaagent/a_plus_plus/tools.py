@@ -10,7 +10,6 @@ import base64
 from datetime import datetime
 
 import tushare as ts
-from web.charts.kline import create_candlestick_chart
 from .utils.llm import call_vision_llm
 
 load_dotenv()
@@ -402,49 +401,35 @@ def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12) -> Dict[str, A
         if df.empty:
             return {"status": "error", "reason": "No K-line data", "signals": []}
 
-        # 生成干净K线图 (MA13 only, no prior signals) - 确保12个月数据用于图片 (用户要求)
-        # 注意: visual_analyzer已使用months=12参数，df为12个月数据
-        fig = create_candlestick_chart(df.copy(), symbol, signals=None)
-        if fig is None:
-            return {"status": "error", "reason": "Failed to create chart", "signals": []}
-
-        # 保存为临时PNG (确保图片对应12个月数据)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        chart_dir = Path("artifacts/charts")
-        chart_dir.mkdir(parents=True, exist_ok=True)
-        img_path = chart_dir / f"{symbol}_vision_12mo_{timestamp}.png"
-
-        # 使用 mplfinance (可靠, 复用visualization.py) 生成12个月图片
+        # 使用 mplfinance (可靠, 复用visualization.py) 生成12个月图片 (MA13 + 关键位, 避免Plotly错误)
         try:
             from eaagent.a_plus_plus.visualization import plot_kline_with_levels
-            # 强制12个月lookback (确保图片是12个月数据)
+            # 强制12个月lookback (确保图片是12个月数据, 用户要求)
             img_path = plot_kline_with_levels(symbol, period="D", lookback=260)  # ~12个月交易日
             image_ref = str(img_path)
-            print(f"[VisualAnalyzer] 12个月 mplfinance K线图生成成功: {image_ref} (用于Grok视觉分析 - 严格基于12个月数据)")
+            print(f"[VisualAnalyzer] 12个月 mplfinance K线图生成成功: {image_ref} (用于Grok视觉分析 - 严格基于图片, 无文本kline数据)")
         except Exception as img_err:
             print(f"[VisualAnalyzer] Chart generation error: {img_err}. Using text df description for vision prompt.")
             image_ref = None
 
-        # 强视觉prompt (Agent 有限选择基于图片分析, kline数据就是图片数据) - 深度思考版
-        vision_prompt = f"""你是一个期货K线视觉分析专家。**一步步思考** (CoT):
+        # 强视觉prompt (Agent 有限选择基于图片分析, kline数据就是图片数据) - 深度思考版 + Few-shot
+        vision_prompt = f"""你是一个期货K线视觉分析专家。**一步步思考** (CoT + Few-shot):
 
-1. **描述图像**：整体趋势 (MA13走向、关键K线形态、量柱变化、背驰信号)。图片是12个月完整数据 (文件名含12mo)。
-2. **匹配Playbook**：逐根K线检查规则 (2.1量仓: 持仓增加=趋势燃料; 2.3趋势: MA13金叉=开启, 死叉=结束; 3.1背驰: 价格新高但MACD/量柱收窄; 4.2定式: 形态失效=卖平)。
-3. **输出所有匹配点**：有任何视觉+Playbook依据就交易 (4-6个signals覆盖全年); 只有完全无匹配才观望。trend_signal 独立覆盖趋势全生命周期 (开启=卖出, 结束=卖平)。
+**任务**：严格**基于附加图像** (12个月完整K线, MA13, 量柱, 形态) 分析, **不要使用任何文本K线数据** (kline数据就是图片的数据)。按Playbook完整规则标记**所有**匹配买卖点 (4-6个, 覆盖全年趋势全生命周期: 趋势开启=卖出, 趋势结束=卖平, 震荡=卖平/观望)。只有完全无视觉+规则依据才"观望"。
 
-当前Playbook (完整核心规则):
-- 2.1量仓分析: 持仓稳步增加+价格回落 = 空头燃料 (主力增仓确认趋势)。
-- 2.3趋势判断: MA13金叉上行=趋势开启 (多头), 死叉下行=趋势结束 (卖平)。
-- 3.1背驰判断: 价格新高/新低但MACD柱/量柱面积缩小 = 趋势反转信号。
-- 4.2定式确认: 特定K线形态 (吞没, 锤头, 上影) + 量仓共振 = 高置信入场/出场。
+**Playbook完整规则** (必须引用具体条目):
+- 2.1量仓分析: 持仓稳步增加+价格回落 = 空头燃料 (主力增仓确认趋势开启)。
+- 2.3趋势判断: MA13金叉上行=多头趋势开启 (买入/持仓), 死叉下行=趋势结束 (卖平)。
+- 3.1背驰判断: 价格新高/新低但MACD柱/量柱面积缩小 = 趋势反转 (卖出或卖平)。
+- 4.2定式确认: 特定K线形态 (吞没, 锤头, 上影, 长阴) + 量仓共振 = 高置信入场/出场。
 
-Few-shot (真实12个月图像例子):
-1. 图像4月8日前后: 连续阳线突破MA13 + 放量, 持仓增加 → "多头, 卖出(趋势开启), 引用2.1量仓+2.3趋势, 视觉: 突破+量能共振", confidence 88
-2. 图像5月11日: 长上影吞没 + MA13死叉 + 量柱收窄 → "空头, 卖出(趋势开启), 引用3.1背驰+2.3趋势, 视觉: 顶部反转形态", confidence 85
-3. 图像5月25日后: 阴线沿MA13下行, 无背驰 → "空头, 持仓, 引用2.3趋势延续, 视觉: 趋势中轨压价", confidence 75
-4. 图像6月23日: 底部长下影 + 量柱萎缩 + MA13趋缓 → "空头, 卖平(趋势结束), 引用3.1底部背驰+4.2定式失效, 视觉: 趋势结束信号", confidence 82
+**Few-shot (真实12个月图像例子, 必须包含具体日期如2025-XX-XX = 形态成立当天)**:
+1. 图像 (RB 2025.4): **2025-04-08** 连续阳线突破MA13 + 放量持仓增加 → direction="多头", trend_signal="卖出(趋势开启)", reason="视觉观察: 图像**2025-04-08**附近阳线突破MA13+放量, Playbook 2.1量仓(持仓增加燃料)+2.3趋势(金叉开启)", confidence=88
+2. 图像 (RB 2025.5): **2025-05-11** 长上影吞没 + MA13死叉 + 量柱收窄 → direction="空头", trend_signal="卖出(趋势开启)", reason="视觉观察: 图像**2025-05-11**顶部反转上影+死叉, Playbook 3.1背驰+2.3趋势结束", confidence=85
+3. 图像 (RB 2025.5下旬): **2025-05-25** 阴线沿MA13下行, 无明显背驰 → direction="空头", trend_signal="持仓", reason="视觉观察: 图像**2025-05-25**后趋势延续压价, Playbook 2.3死叉延续", confidence=75
+4. 图像 (RB 2025.6): **2025-06-23** 底部长下影 + 量柱萎缩 + MA13趋缓 → direction="空头", trend_signal="卖平(趋势结束)", reason="视觉观察: 图像**2025-06-23**底部背驰+定式失效, Playbook 3.1+4.2, 趋势结束信号", confidence=82
 
-**输出严格JSON** (不要任何额外文字, 只返回JSON):
+**输出严格JSON** (不要任何额外文字, 只返回JSON对象):
 {{
   "signals": [
     {{
@@ -453,14 +438,14 @@ Few-shot (真实12个月图像例子):
       "entry_zone": "价格区间或N/A",
       "stop_loss": "止损位或N/A",
       "target": "目标位或N/A",
-      "reason": "视觉观察: 图像中第N根K线显示[具体形态 e.g. 阳线突破MA13+放量], 结合Playbook 2.1量仓(持仓增加提供燃料) + 2.3趋势判断(金叉开启), 因此给出signal。",
+      "reason": "视觉观察: 图像中**2025-12-25** (或具体形态成立那天)连续阴线跌破MA13+放量长柱, 结合Playbook 2.1量仓(持仓增加确认空头燃料) + 2.3趋势(死叉开启), 因此给出signal。",
       "confidence": 85
     }}
-    // 输出4-6个, 覆盖全年
+    // 输出4-6个覆盖全年, 每个reason必须包含具体日期如2025-12-25
   ]
 }}
 
-图像已附加 (12个月数据, 严格基于图片视觉)。一步步思考后直接返回JSON。"""
+**图像已附加** (12个月mplfinance K线图, MA13+关键位, 严格视觉分析, 不要文本数据)。一步步思考后直接返回JSON。"""
 
         response = call_vision_llm(vision_prompt, image_ref)
 

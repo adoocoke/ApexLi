@@ -91,13 +91,24 @@ eaagent/
 
 **Phase 3 Killer Features (Streamlit Dashboard - 2026-07)**
 
-**已完成**（符合用户精确3列布局 + 真实LLM）：
-- **3列布局**：左侧控制面板（品种/策略/Playbook + Start Analysis / Simulate Live切换），主Tabs（多轮轨迹 expandable with input→rules→LLM thinking→critique score + tool table, **K线 with green↑/red↓/orange↘ Signals标注 (只MA_13)**, 最终报告 with Mermaid决策路径 + Critique柱状图, **绩效回测 with equity曲线 + 动态指标 (LLM Signals驱动)**），右侧Shared State + 实时日志 + 人工干预 + Force Stop。
-- **真实LLM驱动**：所有critique_scores、rules、Signals、backtest数据来自Grok-3 (xAI API, XAI_API_KEY), Web下拉"Tushare (真实LLM + 数据)" vs "Mock" 独占控制（无后台硬编码）。
-- **Signals**：LLM从Playbook严格推导（trend_signal/position_action全生命周期：趋势开启→卖出, 结束/震荡→卖平; 非硬编码）。5个月默认, 不足自动增量12个月 (`data_ingestion.py` + observation prompt）。
-- **K线**：只显示MA_13 (用户要求), Signals箭头标注 (绿↑买入/红↓卖出/橙↘卖平), 日期正确 (`%Y-%m-%d`), 12个月数据确认 (`len(df)=174`示例)。
-- **回测**：VectorBT (conda完整) + 动态pandas fallback，使用**同一LLM signals**映射entries/exits, Trades/WinRate/Sharpe反映真实买卖点（非固定值, 对应K线箭头）。
-- **报告**：Mermaid决策路径 (Observation→Playbook→trend_signal→Critique→Final+Backtest) + Plotly Critique柱状图 (real scores), 富文本 + Signals解释区块。
+**100% 完成**（符合用户精确**3栏布局** + 真实Grok-3 Vision，无mock硬编码）：
+
+- **左侧栏**：品种选择（中文主力合约）、策略/Playbook下拉、“开始分析” + **“模拟实盘 (Tushare)”** toggle（独占控制真实LLM）。
+- **主Tabs**：
+  - 多轮轨迹：可展开每轮（输入数据 → Playbook规则 → LLM思考 → Critique评分 + 工具表）。
+  - **K线 + 可视化**：Plotly专业黑底蜡烛（只MA_13绿线）、**Signals箭头标注**（绿↑买入/红↓卖出/橙↘卖平），**日期精确匹配**Grok Vision reason（形态成立当天，如2025-12-25，非顺序index）。
+  - 最终报告：Mermaid决策路径图 + Critique柱状图 + 结构化卡片（置信度/风险/仓位）。
+  - **绩效回测**：equity曲线 + 动态指标（Trades/WinRate/Sharpe真实反映LLM signals，非固定），**所有signals判断依据**完整显示（Playbook引用 + 视觉reason）。
+- **右侧栏**：Shared State（轮次/Critique均分）、人工干预输入 + Force Stop、**实时日志**（LLM Prompt/Response + Kline调试）。
+- **Vision优先流程**：data_ingestion(12mo) → `visual_analyzer`(mplfinance 12mo PNG) → Grok-3 Vision (CoT + 完整Playbook + 4 Few-shot with **具体日期**) → signals（全历史、多点、trend全生命周期：开启=卖出、结束=卖平）。
+- **真实LLM**：Grok-3 (xAI API)，Web开关控制，终端打印完整Prompt/Response/JSON解析，critique_scores/rules/backtest全来自LLM（无fake）。
+- **K线修复**：`figure_or_data`错误、空白图、index/x兼容、ma_13/volume trace、早期return空Figure处理全部解决。
+
+**启动方式**（conda apexli环境）：
+```bash
+~/miniconda3/bin/conda run -n apexli streamlit run streamlit_dashboard.py
+```
+选择“模拟实盘” + 点击“🚀 开始分析”即可看到真实Vision分析 + 完美K线标注 + 动态回测。
 - **日志**：终端最完整 (LLM Prompt/Response + Kline调试 + Signals匹配), Web实时日志区动态更新 (`st.session_state.live_log`)。
 - **导入修复**：pydantic_core / TypedDict extra_items / langgraph冲突 (lazy import + total=False + 延迟graph)。
 

@@ -13,7 +13,7 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
     # 1. 输入校验
     if df is None or not isinstance(df, pd.DataFrame) or df.empty:
         print("[Kline] 输入数据为空或类型错误")
-        return None
+        return go.Figure()  # 返回空Figure避免 "figure_or_data" 错误
 
     df = df.copy()
     signals = signals or []
@@ -35,19 +35,25 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
         print(f"[Kline] 缺少必要列: {missing}")
-        return None
+        return go.Figure()  # 返回空Figure避免 "figure_or_data" 错误
 
     # 4. 数据清洗
     df = df.dropna(subset=['open', 'high', 'low', 'close'])
     if len(df) < 2:
         print("[Kline] 有效K线数量不足（少于2根）")
-        return None
+        return go.Figure()  # 返回空Figure避免 "figure_or_data" 错误
 
     df = df.sort_values('trade_date').reset_index(drop=True)
-    # 修复横轴: 强制trade_date为datetime (避免20.252M科学计数法)
+    # 修复横轴: 强制trade_date为datetime (避免科学计数法) + index
     if 'trade_date' in df.columns:
         df['trade_date'] = pd.to_datetime(df['trade_date'], errors='coerce')
         print(f"[Kline] trade_date转换为datetime, 首条: {df['trade_date'].iloc[0] if not df.empty else 'N/A'}, 共{len(df)}条 (12个月数据)")
+        # 确保datetime index (关键 for xaxis + signal date matching)
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df = df.set_index('trade_date')
+    else:
+        print("[Kline] 无trade_date列，使用默认index")
+        df.index = pd.date_range('2025-01-01', periods=len(df), freq='B')
 
     try:
         fig = make_subplots(
@@ -58,8 +64,9 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
         )
 
         # ==================== K线 ====================
+        x_data = df.index if isinstance(df.index, pd.DatetimeIndex) else df['trade_date']
         fig.add_trace(go.Candlestick(
-            x=df['trade_date'],
+            x=x_data,
             open=df['open'],
             high=df['high'],
             low=df['low'],
@@ -73,31 +80,38 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
             decreasing_line_width=1.0,
         ), row=1, col=1)
 
-        # 只显示 MA_13 (用户要求)
+        # 只显示 MA_13 (用户要求) - 兼容set_index后df['trade_date']可能不存在
+        x_for_ma = df.index if isinstance(df.index, pd.DatetimeIndex) else df.get('trade_date', df.index)
         if 'ma_13' in df.columns:
             fig.add_trace(go.Scatter(
-                x=df['trade_date'],
+                x=x_for_ma,
                 y=df['ma_13'],
                 name='MA_13',
-                line=dict(color='#00FF7F', width=2.0)  # 更粗绿色
+                line=dict(color='#00FF7F', width=2.0)
             ), row=1, col=1)
         else:
             print("[Kline] ma_13 未计算, 请确认get_futures_daily_with_ma返回该列")
 
-        # 成交量（按涨跌着色）
-        if 'vol' in df.columns:
+        # 成交量（按涨跌着色） - 兼容index
+        x_for_vol = df.index if isinstance(df.index, pd.DatetimeIndex) else df.get('trade_date', range(len(df)))
+        if 'vol' in df.columns or 'volume' in df.columns:
+            vol_col = 'vol' if 'vol' in df.columns else 'volume'
             vol_colors = []
             for i in range(len(df)):
-                if df.loc[i, 'close'] >= df.loc[i, 'open']:
-                    vol_colors.append('#FF0000')      # 红量
+                close_val = df.iloc[i]['close']
+                open_val = df.iloc[i]['open']
+                if close_val >= open_val:
+                    vol_colors.append('#FF0000')
                 else:
-                    vol_colors.append('#00CED1')      # 青量
+                    vol_colors.append('#00CED1')
             fig.add_trace(go.Bar(
-                x=df['trade_date'],
-                y=df['vol'],
+                x=x_for_vol,
+                y=df[vol_col],
                 name="成交量",
                 marker_color=vol_colors
             ), row=2, col=1)
+        else:
+            print("[Kline] 无成交量列，跳过volume bar")
 
         # ==================== K线信号标注 (Phase 3 - EA LLM Signals) ====================
         if signals and len(signals) > 0:
@@ -106,18 +120,30 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
                 if i >= len(df): 
                     print(f"  Signal {i} 超出df范围, 跳过")
                     break
-                row_idx = min(i, len(df)-1)  # 安全索引
+                # 关键修复: 使用reason中提取的日期 (Grok Vision Response 必须包含具体日子如"2025-12-25"或"11月下旬")。信号=形态成立当天 (Playbook规则匹配那天买入/卖出)
+                reason = str(sig.get("reason", ""))
+                import re
+                date_match = re.search(r'(\d{4}-\d{2}-\d{2})', reason)
+                if date_match:
+                    target_date = pd.to_datetime(date_match.group(1))
+                    # 找到df中最接近的日期行 (df现在有datetime index)
+                    date_diffs = (df.index.to_series() - target_date).abs()
+                    closest_idx = date_diffs.argmin()
+                    row_idx = closest_idx
+                    actual_date = df.index[row_idx].date() if hasattr(df.index[row_idx], 'date') else df.index[row_idx]
+                    print(f"  Signal {i}: reason日期 {target_date.date()} → df行 {row_idx} (date={actual_date})")
+                else:
+                    # 无具体日期时fallback，但prompt已要求必须包含日期 (形态成立那天)
+                    row_idx = min(i, len(df)-1)
+                    print(f"  Signal {i}: 无日期 (prompt需改进: '形态成立那天 e.g. 2025-12-25'), 使用index {row_idx}")
+
                 direction = str(sig.get("direction", "")).lower()
                 trend_sig = str(sig.get("trend_signal", sig.get("position_action", sig.get("direction", "")))).lower()
                 conf = sig.get("confidence", 70)
-                reason = str(sig.get("reason", ""))
                 print(f"  Signal {i}: dir={direction[:10]}, trend={trend_sig[:15]}, conf={conf}, reason={reason[:60]}...")
 
                 y_pos = float(df.iloc[row_idx]["close"])
-                # 修复日期: 确保x是datetime或字符串一致 (Plotly接受str或pd.Timestamp)
-                date = df.iloc[row_idx]["trade_date"]
-                if isinstance(date, (int, float)):
-                    date = str(date)  # 确保可作为x轴
+                date = df.index[row_idx] if isinstance(df.index, pd.DatetimeIndex) else df.iloc[row_idx]["trade_date"]
 
                 # 修复: 箭头大小/位置优化 (更小箭头, 紧贴K线, 日期x使用正确格式)
                 ax = 0.98 if "买" in direction + trend_sig + reason else 1.02
@@ -180,4 +206,6 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
 
     except Exception as e:
         print(f"[Kline] 绘图异常: {e}")
-        return None
+        import traceback
+        print(traceback.format_exc())
+        return go.Figure()  # 返回空Figure避免 "figure_or_data" 错误

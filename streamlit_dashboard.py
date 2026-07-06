@@ -25,6 +25,7 @@ from web.report_builder import build_analysis_report
 from web.charts.kline import create_candlestick_chart
 from eaagent.tools.tushare_futures import get_popular_main_contracts, get_futures_daily_with_ma
 from eaagent.playbooks.manager import manager
+import plotly.graph_objects as go
 
 # 延迟导入graph相关 (在按钮点击时, 避免TypedDict extra_items冲突)
 def get_graph_and_state():
@@ -121,7 +122,10 @@ with tab2:
             signals = final_state.get("signals", []) or final_state.get("observations", [{}])[-1].get("visual_signals", [])
             print(f"[Dashboard K线] 数据行数: {len(df)}, Signals数量: {len(signals)} (12个月数据已传入K线, 应有标注; visual_signals优先)")
             fig = create_candlestick_chart(df, clean_symbol, signals=signals)
-            st.plotly_chart(fig)  # use_container_width deprecated in newer Streamlit, removed warning
+            if fig is not None and not fig.data:  # 空Figure情况
+                st.warning("K线数据加载中或为空 (检查终端日志)")
+                fig = go.Figure()  # 确保有效
+            st.plotly_chart(fig, use_container_width=True)
             st.caption(f"↑ 买入 (多头/趋势开启) | ↓ 卖出 (空头) | ↘ 卖平 (趋势结束/震荡) - 基于 Playbook 规则 + 历史 + 工具 (LLM 生成)。12个月数据已传入 (len(df) = {len(df)}, signals = {len(signals)})")
         except Exception as e:
             st.error(f"K线 + Signals 标注失败: {e}")
