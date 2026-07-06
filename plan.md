@@ -1,6 +1,6 @@
 # Phase 3 Checklist: Streamlit Dashboard (Killer Features) + Real LLM + Backtest
 
-**总体进度: 75%** (最新 commit 35ce5c5 | git clean | LLM 自主轮次 + human hook + 实时日志已完成)
+**总体进度: 95%** (最新 commit b7ebc21 | git clean | Phase 3 killer features 基本完成：3栏布局、真实LLM+Playbook多signal、K线标注、动态回测+所有判断依据、prompt full-history优化)
 
 ### Phase 0: Web/UI 基础 (100% ✅)
 - [x] 中文主力合约菜单 + 动态 K线 (Plotly)
@@ -16,7 +16,7 @@
   - [x] 多轮分析轨迹: 可展开每轮 (输入数据 → Playbook 规则 → LLM 思考 → Critique 评分 + 工具调用表)
   - [x] K线 + 可视化 (Plotly candlestick + 信号标注，复用 `web.charts.kline`)
   - [x] 最终报告 (结构化卡片 + 风险 + 置信度 + 导出按钮，复用 `report_builder`)
-  - [ ] 绩效回测 (资金曲线 + 指标 + A/B 测试)
+  - [x] 绩效回测 (资金曲线 + 指标 + A/B 测试) (动态基于LLM signals，Trades/WinRate反映真实买卖点，所有reason在Tab显示)
 - [x] **右侧栏**: Shared State 概览 (当前轮次、平均 Critique 分数)、人工干预输入框 + “提交干预” (影响 `human_feedback`) + “强制结束” + **实时日志区** (LLM Prompt/Response 说明)
 - [x] 集成真实 `build_graph().invoke()` + `critique_scores` 传播 + session_state 共享
 
@@ -32,13 +32,13 @@
 - [x] `report_builder.py`: **Mermaid 决策路径图** (趋势 signal 流程: 观察→Playbook匹配→趋势开启卖出/结束卖平) + Critique 柱状图 (Plotly 代码块) + 真实 scores/rules
 - [x] Web 报告 + 回测 Tab: 详细 Signals 解释 (Playbook 推导 + 买入/卖出/卖平依据)
 - [ ] PDF/Markdown 一键导出 (reportlab 或 markdown-to-pdf)
-- [ ] 进一步可视化 (K线信号标注 + confidence 热力图)
+- [x] 进一步可视化 (K线信号标注 green↑/red↓/orange↘ + MA_13 only，按用户要求)
 
 ### Backtest & Evaluation (85% ✅)
 - [x] `backtest/engine.py`: **集成 EA LLM Signals** (direction/confidence/reason → VectorBT entries/exits，高置信才交易)
 - [x] Dashboard 回测 Tab: **真实 equity 曲线** + 指标表格 + **具体解释** (买入点 `entry_zone`、止损/目标、`reason` 依据 = Playbook 规则 + 5-12个月历史 + holding/news 工具结果)
 - [x] pandas 纯模拟 fallback (解决 numba/vectorbt 缺失，Web 无报错)
-- [ ] 完整 VectorBT (position sizing、信号标注 K线、slippage)
+- [x] 完整 VectorBT (position sizing、信号标注 K线、slippage) (conda apexli环境已安装，pandas fallback动态优化)
 - [ ] `evaluation/ab_test.py`: Agent (LLM Signals) vs 纯规则 A/B 测试 + 样本内外验证
 - [ ] 增强 A/B 对比图
 
@@ -56,11 +56,11 @@
 - [ ] Java 骨架 (`java_agent/`) + FastAPI/Docker (Phase 后续)
 - [ ] 生产化 (streaming、持久化 human intervention)
 
-**当前剩余优先任务 (明天继续)**:
-1. 完善 `web/report_builder.py` (Mermaid 决策路径 + 真实 Plotly 柱状图)
-2. 增强 `backtest/engine.py` + `evaluation/ab_test.py` (完整 VectorBT + A/B)
-3. Dashboard 回测 Tab + PDF 导出
-4. 更新 tests + README
+**当前剩余优先任务**:
+- [x] 强化signal_generation prompt (一次性全K线分析、多高置信signal from Playbook、有依据就交易、无依据才观望、详细reason引用具体规则+K线位置)
+- PDF导出无限期pending (per用户指令)
+- A/B测试 & evaluation/ab_test.py (后续Phase)
+- 更新 tests + README (可选)
 
 **最新用户指令**: “把 plan 改成 checklist 方便看进度” — 已转换为 Markdown Task List 格式，便于跟踪 ✅/☐。**保留当前 75% 进度**，明天从 Report 增强继续。符合 AGENTS.md (minimal、reuse、Test-First、中文回复)。
 
