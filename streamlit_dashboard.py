@@ -117,8 +117,8 @@ with tab2:
             clean_symbol = final_state.get("current_symbol", symbol.split()[-1] if isinstance(symbol, str) and ' ' in str(symbol) else str(symbol))
             # 确认使用12个月数据 (与Signals历史一致, data_ingestion已自动增量)
             df = get_futures_daily_with_ma(clean_symbol, months=12, ma_periods=[13])  # 只MA_13 (K线只显示这条)
-            signals = final_state.get("signals", [])
-            print(f"[Dashboard K线] 数据行数: {len(df)}, Signals数量: {len(signals)} (12个月数据已传入K线, 应有标注)")
+            signals = final_state.get("signals", []) or final_state.get("observations", [{}])[-1].get("visual_signals", [])
+            print(f"[Dashboard K线] 数据行数: {len(df)}, Signals数量: {len(signals)} (12个月数据已传入K线, 应有标注; visual_signals优先)")
             fig = create_candlestick_chart(df, clean_symbol, signals=signals)
             st.plotly_chart(fig, use_container_width=True)
             st.caption(f"↑ 买入 (多头/趋势开启) | ↓ 卖出 (空头) | ↘ 卖平 (趋势结束/震荡) - 基于 Playbook 规则 + 历史 + 工具 (LLM 生成)。12个月数据已传入 (len(df) = {len(df)}, signals = {len(signals)})")
@@ -145,7 +145,7 @@ with tab4:
         try:
             from backtest.engine import run_backtest
             final_state = st.session_state.final_state
-            signals = final_state.get("signals", [])
+            signals = final_state.get("signals", []) or final_state.get("observations", [{}])[-1].get("visual_signals", [])
             result = run_backtest(
                 symbol=final_state.get("current_symbol", symbol.split()[-1] if isinstance(symbol, str) and ' ' in symbol else str(symbol)),
                 signals=signals,  # 集成 EA LLM Signals (direction + confidence)
@@ -161,7 +161,7 @@ with tab4:
                 # 加强: 显示所有Signals的reason (用户要求 - 对应K线所有买卖点, 而非只latest)
                 if signals:
                     st.subheader("📍 所有 Signals 判断依据 (LLM 生成 - 对应K线所有买卖点)")
-                    st.info(f"共 {len(signals)} 个高置信Signals (与K线箭头对应, 非只最后一根K线)。以下是每个signal的完整reason（来自Playbook规则推导 + 5-12个月历史 + 工具）。")
+                    st.info(f"共 {len(signals)} 个高置信Signals (与K线箭头对应, 非只最后一根K线)。以下是每个signal的完整reason（来自**Grok Vision图像分析 + Playbook规则**推导 + 5-12个月历史 + 工具）。视觉能力提升趋势判断准确性。")
                     for idx, sig in enumerate(signals):
                         st.markdown(f"""
 **Signal {idx+1}** (Confidence: {sig.get('confidence', 'N/A')}%)

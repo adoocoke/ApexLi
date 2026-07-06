@@ -95,18 +95,37 @@ def structured_observation(state: TAState) -> TAState:
     system_prompt = state.get("messages", [{}])[0].get("content", "") if state.get("messages") else ""
 
     from eaagent.a_plus_plus.utils.llm import call_llm
-    response = call_llm(prompt, system_prompt)
+    from eaagent.a_plus_plus.tools import visual_analyzer
+    # Vision upgrade: 尝试visual_analyzer获取图像-based signals (Grok视觉优于文本K线分析)
+    visual_result = visual_analyzer(state.get("current_symbol", "RB2610.SHF"), months=12)
+    if visual_result.get("status") == "success" and visual_result.get("signals"):
+        print(f"[Observation] Visual Analyzer 提供 {len(visual_result['signals'])} 个高置信signals (图像+Playbook)，优先使用")
+        state["signals"] = visual_result["signals"]  # 直接注入state，供后续signal_generation/回测使用
+        obs_data = {
+            "phase": "视觉K线分析完成",
+            "trading_bias": "基于Grok图像模式",
+            "playbook_references": [{"rule": "视觉+Playbook综合", "match_reason": "Grok vision分析完整K线图像，输出多买卖点"}],
+            "data_requests": [],
+            "visual_signals": visual_result["signals"],
+            "image_path": visual_result.get("image_path")
+        }
+    else:
+        print("[Observation] Visual fallback to text LLM analysis")
+        response = call_llm(prompt, system_prompt)
+        try:
+            obs_data = json.loads(response)
+        except Exception:
+            obs_data = {"phase": "解析失败", "playbook_references": [], "data_requests": []}
 
     try:
         obs_data = json.loads(response)
     except Exception:
         obs_data = {"phase": "解析失败", "playbook_references": [], "data_requests": []}
 
-    # Ensure structured playbook_references (Step 2 EA-002)
+    # Ensure structured playbook_references (Step 2 EA-002) + vision compatibility
     if isinstance(obs_data.get("playbook_references"), list):
         for i, ref in enumerate(obs_data["playbook_references"]):
             if isinstance(ref, str):
-                # Convert string "标题：解释" to dict
                 if "：" in ref or ":" in ref:
                     parts = ref.split("：") if "：" in ref else ref.split(":")
                     obs_data["playbook_references"][i] = {
@@ -117,6 +136,6 @@ def structured_observation(state: TAState) -> TAState:
                     obs_data["playbook_references"][i] = {"rule": ref, "match_reason": ""}
 
     state["observations"].append(obs_data)
-    color_print(f" → 本轮引用 Playbook: {obs_data.get('playbook_references', [])}", Colors.OKBLUE)
+    color_print(f" → 本轮引用 Playbook: {obs_data.get('playbook_references', [])} | Visual signals: {len(obs_data.get('visual_signals', []))}", Colors.OKBLUE)
 
     return state

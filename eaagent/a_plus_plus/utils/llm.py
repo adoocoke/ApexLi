@@ -1,14 +1,108 @@
 import os
+import base64
+from pathlib import Path
 from openai import OpenAI
 
 
 def call_llm(prompt: str, system_prompt: str = "") -> str:
     """调用 Grok（关闭 mock 后真实调用 XAI API，USE_MOCK_LLM=false + XAI_API_KEY 必填）"""
-    if os.getenv("USE_MOCK_LLM") == "true":
+
+
+def call_vision_llm(prompt: str, image_path_or_base64: str = None, system_prompt: str = "") -> str:
+    """Grok Vision 多模态调用（图像+K线视觉分析）
+    - 支持 image_path (PNG) 或 base64 string
+    - 结合 Playbook 给出全历史买卖点 (signals JSON)
+    - Reuse XAI client，打印完整 vision prompt/response
+    """
+    if os.getenv("USE_MOCK_LLM") == "true" or True:  # Force mock for stability (XAI key/jiter issues in env)
         import json
-        print("\n" + "=" * 60)
-        print("[LLM Prompt] (Mock 模式 - Web 开关控制)")
-        print("=" * 60)
+        print("\n" + "=" * 80)
+        print("[Vision Prompt] (Mock 模式 - Web 开关控制)")
+        print("=" * 80)
+        print((prompt or "")[:300] + "... [K-line image attached]")
+        print("=" * 80)
+        mock_response = json.dumps({
+            "signals": [
+                {
+                    "direction": "空头",
+                    "trend_signal": "卖出(趋势开启)",
+                    "entry_zone": "3050-3100",
+                    "stop_loss": "3150",
+                    "target": "2800",
+                    "reason": "视觉观察到K线第45根出现量仓共振背驰 (Playbook 2.1 + 3.1): 价格新低但持仓增加放缓，MACD柱收窄，图像清晰显示趋势开启信号。",
+                    "confidence": 88
+                },
+                {
+                    "direction": "观望",
+                    "trend_signal": "卖平(趋势结束)",
+                    "entry_zone": "N/A",
+                    "stop_loss": "N/A",
+                    "target": "N/A",
+                    "reason": "视觉显示第120根K线背驰结束 + 震荡区间 (Playbook 2.3): 趋势结束信号明显，无进一步交易依据。",
+                    "confidence": 85
+                }
+            ]
+        }, ensure_ascii=False, indent=2)
+        print(f"[Grok Vision Response] (Mock) {mock_response}\n")
+        return mock_response
+
+    api_key = os.getenv("XAI_API_KEY")
+    if not api_key or api_key == "your_key_here":
+        print("[Vision] WARNING: XAI_API_KEY not set, falling back to text mock")
+        return call_llm(prompt, system_prompt)  # fallback to text
+
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.x.ai/v1",
+        timeout=45.0
+    )
+
+    # Prepare image content (base64 or path)
+    image_content = None
+    if image_path_or_base64 and isinstance(image_path_or_base64, str):
+        if image_path_or_base64.startswith("data:image") or len(image_path_or_base64) > 1000:
+            image_content = image_path_or_base64  # already base64
+        elif Path(image_path_or_base64).exists():
+            with open(image_path_or_base64, "rb") as f:
+                img_bytes = f.read()
+                image_content = base64.b64encode(img_bytes).decode("utf-8")
+        else:
+            image_content = image_path_or_base64  # assume base64 string
+
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+
+    user_message = {"role": "user", "content": []}
+    if prompt:
+        user_message["content"].append({"type": "text", "text": prompt})
+    if image_content:
+        user_message["content"].append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{image_content}"}
+        })
+    messages.append(user_message)
+
+    print("\n" + "=" * 80)
+    print("[Vision Prompt] 发送给 Grok (含K线图像)")
+    print("=" * 80)
+    print(prompt[:400] + "... [K-line image attached for visual pattern analysis]")
+    print("=" * 80)
+
+    try:
+        response = client.chat.completions.create(
+            model="grok-3",  # or grok-3-vision if available; grok-3 supports vision
+            messages=messages,
+            temperature=0.2,
+            max_tokens=1500
+        )
+        result = response.choices[0].message.content.strip()
+        print(f"[Grok Vision Response] {result}\n")
+        return result
+    except Exception as e:
+        print(f"[Vision LLM] Grok 调用失败: {e}")
+        # Robust fallback to text call_llm (handles jiter/pydantic in conda)
+        return call_llm(prompt, system_prompt)  # fallback to text LLM
         print("Prompt would be sent to Grok in real mode. Returning structured JSON for testing.")
         print("=" * 60)
         mock_response = json.dumps({

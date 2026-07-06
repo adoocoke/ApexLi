@@ -12,7 +12,7 @@ class APlusPlusReActAgent(ReActAgent):
 
         # 延迟导入，避免循环依赖
         from .visualization import generate_kline_chart
-        from .tools import get_futures_holding, get_futures_basic, get_related_futures_dynamic, get_futures_news
+        from .tools import get_futures_holding, get_futures_basic, get_related_futures_dynamic, get_futures_news, visual_analyzer
 
         # 注册交易工具 (LLM可调用, Tushare 15000积分全覆盖, doc_id=290 fut_holding)
         self.add_tool(
@@ -88,7 +88,21 @@ class APlusPlusReActAgent(ReActAgent):
             function=get_futures_news
         )
 
-        print(f"[Agent] 已注册 {len(self.tools)} 个期货工具 (news + holding + basic + related, 15000积分覆盖, NEED_TOOL if missing)")
+        self.add_tool(
+            name="visual_analyzer",
+            description="Grok视觉K线分析工具。输入symbol，返回基于图像+Playbook的全历史高置信买卖点signals列表 (direction, trend_signal, reason引用规则+视觉模式, confidence)。优于纯文本分析，尤其趋势开启/结束判断。12个月数据，MA13清晰。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "期货合约代码 (e.g. RB2610.SHF)"},
+                    "months": {"type": "integer", "description": "历史月份，默认12", "default": 12}
+                },
+                "required": ["symbol"]
+            },
+            function=visual_analyzer
+        )
+
+        print(f"[Agent] 已注册 {len(self.tools)} 个期货工具 (news + holding + basic + related + visual_analyzer for Grok vision, 15000积分覆盖, NEED_TOOL if missing)")
 
     def load_playbook(self):
         """加载交易 Playbook（由子类或外部调用）"""

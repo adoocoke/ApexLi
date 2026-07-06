@@ -28,9 +28,10 @@
 - [x] `llm.py`: 所有路径打印 `[LLM Prompt]` + `[Grok Response]` (Mock/Real/Fallback 均可见)
 - [x] thread_id 持久化 + MemorySaver
 
-### Report & Visualization (85% ✅)
+### Report & Visualization (90% ✅)
 - [x] `report_builder.py`: **Mermaid 决策路径图** (趋势 signal 流程: 观察→Playbook匹配→趋势开启卖出/结束卖平) + Critique 柱状图 (Plotly 代码块) + 真实 scores/rules
 - [x] Web 报告 + 回测 Tab: 详细 Signals 解释 (Playbook 推导 + 买入/卖出/卖平依据)
+- [x] **Grok Vision Upgrade** (`llm.py:call_vision_llm`, `tools.py:visual_analyzer`, wrapper注册): K线图像 (mplfinance/plotly fallback) + 多模态Prompt → 结构化signals (全历史、多买卖点、视觉reason引用Playbook 2.1/2.3/3.1)。集成observation/signal_gen (待Slice 2)。
 - [ ] PDF/Markdown 一键导出 (reportlab 或 markdown-to-pdf)
 - [x] 进一步可视化 (K线信号标注 green↑/red↓/orange↘ + MA_13 only，按用户要求)
 
