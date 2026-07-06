@@ -2,8 +2,8 @@ from __future__ import annotations
 from typing import TypedDict, List, Dict, Any, Optional
 from datetime import datetime
 
-
-class TAState(TypedDict):
+# Use total=False for compatibility with newer TypedDict (avoid extra_items error in langchain_protocol)
+class TAState(TypedDict, total=False):
     current_symbol: str
     current_playbook: str
     messages: List[dict]

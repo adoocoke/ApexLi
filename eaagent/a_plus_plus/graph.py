@@ -10,21 +10,26 @@ import os
 from datetime import datetime
 from typing import Literal
 
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import StateGraph, END
+# Lazy imports to avoid langchain_protocol / langgraph_sdk TypedDict 'extra_items' conflict in streamlit
+# (pydantic_core error)
+def _lazy_import_graph():
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.graph import StateGraph, END
+    from .types import TAState
+    from eaagent.playbooks.manager import manager
+    from .config import MAX_ROUNDS
+    from .nodes import persist, data_ingestion
+    from .nodes.data_gathering import data_gathering
+    from .nodes.llm_critique import llm_critique
+    from .nodes.observation import structured_observation
+    from .nodes.quality_sensor import quality_sensor
+    from .utils.console import color_print, Colors
+    from .utils.llm import call_llm
+    return (MemorySaver, StateGraph, END, TAState, manager, MAX_ROUNDS, persist, data_ingestion, data_gathering, 
+            llm_critique, structured_observation, quality_sensor, color_print, Colors, call_llm)
 
-from eaagent.playbooks.manager import manager
-from .config import MAX_ROUNDS
-# ==================== 节点模块 ====================
-from .nodes import persist, data_ingestion
-from .nodes.data_gathering import data_gathering
-from .nodes.llm_critique import llm_critique
-from .nodes.observation import structured_observation
-from .nodes.quality_sensor import quality_sensor
-from .types import TAState
-from .utils.console import color_print, Colors
-# ==================== 工具模块 ====================
-from .utils.llm import call_llm
+# Global lazy objects
+_MemorySaver, _StateGraph, _END, TAState, manager, MAX_ROUNDS, persist, data_ingestion, data_gathering, llm_critique, structured_observation, quality_sensor, color_print, Colors, call_llm = _lazy_import_graph()
 
 
 def create_initial_state(symbol: str = "RB2610.SHF", playbook_name: str = "v3") -> TAState:
@@ -374,7 +379,7 @@ def final_output(state: TAState) -> TAState:
 
 
 def build_graph():
-    workflow = StateGraph(TAState)
+    workflow = _StateGraph(TAState)
 
     workflow.add_node("initialize", initialize_state)
     workflow.add_node("data_ingestion", data_ingestion)
@@ -401,9 +406,9 @@ def build_graph():
     )
 
     workflow.add_edge("final_output", "persist")
-    workflow.add_edge("persist", END)
+    workflow.add_edge("persist", _END)
 
-    checkpointer = MemorySaver()
+    checkpointer = _MemorySaver()
     app = workflow.compile(checkpointer=checkpointer)
     return app
 

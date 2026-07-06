@@ -1,15 +1,14 @@
 from typing import TypedDict, List, Optional, Dict, Any
 
-# 尝试导入 langchain_core，如果没有安装则使用占位类型
-try:
-    from langchain_core.messages import BaseMessage
-    HAS_LANGCHAIN = True
-except ImportError:
-    BaseMessage = dict  # 占位类型
-    HAS_LANGCHAIN = False
+# Use total=False for compatibility (fix TypedDict extra_items error from langchain_protocol/langgraph)
+
+# 避免langchain_core/langgraph_sdk版本冲突 (extra_items / TypedDict)
+# 使用dict作为BaseMessage占位 (streamlit环境下避免导入langchain_protocol)
+BaseMessage = dict
+HAS_LANGCHAIN = False
 
 
-class APlusPlusState(TypedDict):
+class APlusPlusState(TypedDict, total=False):
     """扩展的状态定义，继承 eaagent 基础状态 + A++ 特有字段"""
 
     # === 基础消息历史（LangGraph 标准） ===

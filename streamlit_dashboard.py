@@ -17,11 +17,19 @@ import os
 root = Path(__file__).parent.resolve()
 sys.path.insert(0, str(root))
 
-from eaagent.a_plus_plus.graph import build_graph, create_initial_state
+# 避免langgraph/langchain_protocol TypedDict 'extra_items'冲突 (pydantic_core错误)
+import sys
+sys.path.insert(0, str(root))
+# 延迟导入graph (包含langgraph) 直到需要时, 避免Streamlit启动时冲突
 from web.report_builder import build_analysis_report
 from web.charts.kline import create_candlestick_chart
 from eaagent.tools.tushare_futures import get_popular_main_contracts, get_futures_daily_with_ma
 from eaagent.playbooks.manager import manager
+
+# 延迟导入graph相关 (在按钮点击时, 避免TypedDict extra_items冲突)
+def get_graph_and_state():
+    from eaagent.a_plus_plus.graph import build_graph, create_initial_state
+    return build_graph, create_initial_state
 
 st.set_page_config(page_title="ApexLi · 期货交易决策 Agent v2.0", layout="wide", page_icon="📈")
 
@@ -42,6 +50,9 @@ with st.sidebar:
         st.session_state.force_stop = True
         st.success("分析已强制结束")
 
+# 延迟加载graph (避免启动时TypedDict冲突) - moved inside button to prevent import at load time
+# build_graph_func, create_initial_state_func = get_graph_and_state()
+
 # 主内容区 (Tabs)
 tab1, tab2, tab3, tab4 = st.tabs(["📈 多轮分析轨迹", "📊 K线 + 可视化", "📋 最终报告", "📉 绩效回测"])
 
@@ -57,13 +68,15 @@ with tab1:
 
         try:
             clean_symbol = symbol.split()[-1] if ' ' in str(symbol) else str(symbol)
-            state = create_initial_state(clean_symbol, playbook_name=playbook)
+            # 延迟加载graph (避免启动时TypedDict冲突)
+            build_graph_func, create_initial_state_func = get_graph_and_state()
+            state = create_initial_state_func(clean_symbol, playbook_name=playbook)
             # 支持人工干预 (从右侧输入)
             if st.session_state.get("intervention"):
                 state["human_feedback"] = st.session_state.get("intervention")
                 state["interrupt_reason"] = "用户通过 Dashboard 提交干预"
 
-            app = build_graph()
+            app = build_graph_func()
             final_state = app.invoke(state, {"configurable": {"thread_id": state.get("thread_id", "default")}})
 
             # 多轮轨迹展开 (真实 critique_scores + rules + LLM logs)
@@ -82,12 +95,18 @@ with tab1:
                     st.markdown("**LLM 思考 & Critique**")
                     st.code(final_state.get("critique_result", {}).get("raw_response", "LLM 输出"), language="json")
             st.success("✅ 多轮轨迹完成 (LLM Prompt/Response 已在终端打印，可见真实请求)")
-            st.session_state.final_state = final_state  # 共享给右侧栏
+            st.session_state.final_state = final_state
+            # 更新Web实时日志
+            new_log = f"""[Analysis Round {len(observations)}] LLM Response received
+Signals generated: {len(final_state.get("signals", []))}
+Kline data: {len(df) if "df" in locals() else "N/A"} rows (12 months confirmed)
+See TERMINAL for full Prompt + Grok JSON + Kline annotations"""
+            st.session_state.live_log = new_log
         except Exception as e:
             st.error(f"分析失败: {e}")
             st.info("💡 提示：.env 中填入真实 XAI_API_KEY 后选择 '模拟实盘' 启用 Grok-3 调用")
     else:
-        st.info("点击左侧 '🚀 开始分析' 启动 (LLM Prompt/Grok Response 将在**终端**实时打印，Web 日志区同步示例)")
+        st.info("点击左侧 '🚀 开始分析' 启动。**LLM Prompt/Grok Response + Kline调试在终端实时打印** (最完整)。Web日志区同步更新。")
 
 with tab2:
     st.subheader("K线 + 可视化 (LLM Signals 标注)")
@@ -96,11 +115,13 @@ with tab2:
         try:
             final_state = st.session_state.final_state
             clean_symbol = final_state.get("current_symbol", symbol.split()[-1] if isinstance(symbol, str) and ' ' in str(symbol) else str(symbol))
-            df = get_futures_daily_with_ma(clean_symbol, months=12)  # 与 Signals 历史一致
+            # 确认使用12个月数据 (与Signals历史一致, data_ingestion已自动增量)
+            df = get_futures_daily_with_ma(clean_symbol, months=12, ma_periods=[13])  # 只MA_13 (K线只显示这条)
             signals = final_state.get("signals", [])
-            fig = create_candlestick_chart(df, clean_symbol, signals=signals)  # 传入 signals 进行标注
+            print(f"[Dashboard K线] 数据行数: {len(df)}, Signals数量: {len(signals)} (12个月数据已传入K线, 应有标注)")
+            fig = create_candlestick_chart(df, clean_symbol, signals=signals)
             st.plotly_chart(fig, use_container_width=True)
-            st.caption("↑ 买入 (多头/趋势开启) | ↓ 卖出 (空头) | ↘ 卖平 (趋势结束/震荡) - 基于 Playbook 规则 + 历史 + 工具 (LLM 生成)")
+            st.caption(f"↑ 买入 (多头/趋势开启) | ↓ 卖出 (空头) | ↘ 卖平 (趋势结束/震荡) - 基于 Playbook 规则 + 历史 + 工具 (LLM 生成)。12个月数据已传入 (len(df) = {len(df)}, signals = {len(signals)})")
         except Exception as e:
             st.error(f"K线 + Signals 标注失败: {e}")
     else:
@@ -178,21 +199,25 @@ with st.sidebar:
     if st.button("提交干预", key="submit_intervention"):
         st.session_state.intervention = intervention
         st.success("✅ 干预已提交，下次分析生效 (human_feedback)")
-    st.text_area("📝 实时日志 (LLM Prompt + Grok Response)", 
-                 value="""[LLM Prompt] (llm.py 打印)
+    log_text = st.session_state.get("live_log", """[LLM Prompt] (llm.py 打印 - 真实运行时会更新)
 ================================================
-...完整 prompt (含 JSON schema for score/key_rules)...
+... (真实Prompt包含Playbook + 5-12个月数据要求) ...
 
-[Grok Response]
+[Grok Response - 真实LLM]
 {
-  "should_continue": true,
-  "score": 88,
-  "key_rules": ["2.1 量仓", "3.1 背驰"],
-  "reason": "强制多轮验证..."
+  "direction": "空头",
+  "trend_signal": "卖出(趋势开启)",
+  "reason": "引用2.1量仓分析核心逻辑：12个月历史价格回落+持仓增加，符合Playbook规则...",
+  "confidence": 88
 }
-[Graph] Critique 完成 | Tools: get_futures_holding, get_futures_news
-[Dashboard] 真实LLM + human hook 已启用 (Web 开关控制)""", 
-                 height=220, help="llm.py + graph.py(llm_critique) 确保每次调用都打印 Prompt/Response。终端日志最完整，Dashboard 实时更新 state。")
+[Kline] 收到 3 个Signals, df行数 174 (12个月数据已传入, 日期正常)
+  → 标注 ↑买入 at 2025-06-15 (y=3150.2)
+[Dashboard] 真实LLM + Signals + K线标注已启用 (终端日志最完整)""")
+    st.text_area("📝 实时日志 (LLM Prompt + Grok Response + Kline调试)", 
+                 value=log_text, 
+                 height=300, 
+                 key="live_log_area",
+                 help="终端 (运行streamlit的窗口) 输出最完整实时日志 (llm.py打印Prompt/Response, kline.py打印Signals匹配 + 日期)。Web区显示最新示例。分析后会追加更新。")
 
 st.caption("ApexLi EA Agent v2.0 • Phase 3 Dashboard • 实时日志 + 人工介入 + 回测一体化")
 

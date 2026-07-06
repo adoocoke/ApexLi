@@ -87,7 +87,7 @@ def get_related_futures_daily(
 def get_futures_daily_with_ma(
     ts_code: str,
     months: int = 5,
-    ma_periods: List[int] = [5, 13, 20],
+    ma_periods: List[int] = [13],  # 只计算MA_13 (K线只显示这条)
     pro: Optional[object] = None
 ) -> pd.DataFrame:
     """

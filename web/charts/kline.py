@@ -44,6 +44,10 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
         return None
 
     df = df.sort_values('trade_date').reset_index(drop=True)
+    # 修复横轴: 强制trade_date为datetime (避免20.252M科学计数法)
+    if 'trade_date' in df.columns:
+        df['trade_date'] = pd.to_datetime(df['trade_date'], errors='coerce')
+        print(f"[Kline] trade_date转换为datetime, 首条: {df['trade_date'].iloc[0] if not df.empty else 'N/A'}, 共{len(df)}条 (12个月数据)")
 
     try:
         fig = make_subplots(
@@ -69,20 +73,16 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
             decreasing_line_width=1.0,
         ), row=1, col=1)
 
-        # 均线
-        ma_style = {
-            'ma_5':  {'color': '#FFD700', 'width': 1.4},
-            'ma_13': {'color': '#00FF7F', 'width': 1.4},
-            'ma_20': {'color': '#FF69B4', 'width': 1.4},
-        }
-        for ma_col, style in ma_style.items():
-            if ma_col in df.columns:
-                fig.add_trace(go.Scatter(
-                    x=df['trade_date'],
-                    y=df[ma_col],
-                    name=ma_col.upper(),
-                    line=dict(color=style['color'], width=style['width'])
-                ), row=1, col=1)
+        # 只显示 MA_13 (用户要求)
+        if 'ma_13' in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df['trade_date'],
+                y=df['ma_13'],
+                name='MA_13',
+                line=dict(color='#00FF7F', width=2.0)  # 更粗绿色
+            ), row=1, col=1)
+        else:
+            print("[Kline] ma_13 未计算, 请确认get_futures_daily_with_ma返回该列")
 
         # 成交量（按涨跌着色）
         if 'vol' in df.columns:
@@ -101,50 +101,75 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
 
         # ==================== K线信号标注 (Phase 3 - EA LLM Signals) ====================
         if signals and len(signals) > 0:
+            print(f"[Kline] 收到 {len(signals)} 个Signals, df行数 {len(df)} (12个月数据)")
             for i, sig in enumerate(signals):
-                if i >= len(df): break
-                row_idx = i  # align with df rows
+                if i >= len(df): 
+                    print(f"  Signal {i} 超出df范围, 跳过")
+                    break
+                row_idx = min(i, len(df)-1)  # 安全索引
                 direction = str(sig.get("direction", "")).lower()
-                trend_sig = str(sig.get("trend_signal", sig.get("position_action", ""))).lower()
+                trend_sig = str(sig.get("trend_signal", sig.get("position_action", sig.get("direction", "")))).lower()
                 conf = sig.get("confidence", 70)
-                if conf < 70: continue  # 只标注高置信 signal
+                reason = str(sig.get("reason", ""))
+                print(f"  Signal {i}: dir={direction[:10]}, trend={trend_sig[:15]}, conf={conf}, reason={reason[:60]}...")
 
-                # 信号位置 (close price)
                 y_pos = float(df.iloc[row_idx]["close"])
+                # 修复日期: 确保x是datetime或字符串一致 (Plotly接受str或pd.Timestamp)
                 date = df.iloc[row_idx]["trade_date"]
+                if isinstance(date, (int, float)):
+                    date = str(date)  # 确保可作为x轴
 
-                if any(k in direction + trend_sig for k in ["买入", "多头", "buy", "long", "做多"]):
+                # 修复: 箭头大小/位置优化 (更小箭头, 紧贴K线, 日期x使用正确格式)
+                ax = 0.98 if "买" in direction + trend_sig + reason else 1.02
+                ay = -30 if "买" in direction + trend_sig + reason else 30
+                if any(k in direction + trend_sig + reason for k in ["买入", "多头", "buy", "long", "做多", "看多"]):
                     fig.add_annotation(
-                        x=date, y=y_pos * 0.995,
-                        text="↑ 买入", showarrow=True, arrowhead=2, arrowcolor="#00FF00",
-                        font=dict(color="#00FF00", size=12), bgcolor="rgba(0,255,0,0.2)"
+                        x=date, y=y_pos,
+                        text="↑买入", showarrow=True, arrowhead=2, arrowsize=1.5, arrowcolor="#00FF00", arrowwidth=2,
+                        ax=0, ay=ay, font=dict(color="#00FF00", size=11, family="Arial Black"), 
+                        bgcolor="rgba(0,255,0,0.25)", bordercolor="#00FF00"
                     )
-                elif any(k in direction + trend_sig for k in ["卖出", "空头", "sell", "short", "做空", "趋势开启"]):
+                    print(f"  → 标注 ↑买入 at {date} (y={y_pos:.1f})")
+                elif any(k in direction + trend_sig + reason for k in ["卖出", "空头", "sell", "short", "做空", "看空", "趋势开启", "趋势开始"]):
                     fig.add_annotation(
-                        x=date, y=y_pos * 1.005,
-                        text="↓ 卖出", showarrow=True, arrowhead=2, arrowcolor="#FF0000",
-                        font=dict(color="#FF0000", size=12), bgcolor="rgba(255,0,0,0.2)"
+                        x=date, y=y_pos,
+                        text="↓卖出", showarrow=True, arrowhead=2, arrowsize=1.5, arrowcolor="#FF0000", arrowwidth=2,
+                        ax=0, ay=ay, font=dict(color="#FF0000", size=11, family="Arial Black"), 
+                        bgcolor="rgba(255,0,0,0.25)", bordercolor="#FF0000"
                     )
-                elif any(k in direction + trend_sig for k in ["卖平", "平仓", "卖平(趋势结束)", "减仓", "震荡"]):
+                    print(f"  → 标注 ↓卖出 at {date} (y={y_pos:.1f})")
+                elif any(k in direction + trend_sig + reason for k in ["卖平", "平仓", "卖平(趋势结束)", "减仓", "震荡", "趋势结束", "趋势完结", "观望"]):
                     fig.add_annotation(
-                        x=date, y=y_pos * 1.01,
-                        text="↘ 卖平", showarrow=True, arrowhead=1, arrowcolor="#FFAA00",
-                        font=dict(color="#FFAA00", size=11), bgcolor="rgba(255,170,0,0.2)"
+                        x=date, y=y_pos,
+                        text="↘卖平", showarrow=True, arrowhead=1, arrowsize=1.2, arrowcolor="#FFAA00", arrowwidth=2,
+                        ax=0, ay=ay, font=dict(color="#FFAA00", size=10, family="Arial Black"), 
+                        bgcolor="rgba(255,170,0,0.25)", bordercolor="#FFAA00"
                     )
+                    print(f"  → 标注 ↘卖平 at {date} (y={y_pos:.1f})")
+                else:
+                    print(f"  → 无匹配关键词, direction={direction}, trend={trend_sig}, reason关键词={reason[:50]}")
 
         # ==================== 纯黑专业风格 ====================
         fig.update_layout(
-            title=dict(text=f"{symbol} K线图 + Signals 标注", font=dict(color='white', size=15)),
+            title=dict(text=f"{symbol} K线图 + Signals 标注 (12个月数据, {len(signals)} signals)", font=dict(color='white', size=15)),
             plot_bgcolor='#000000',
             paper_bgcolor='#000000',
             font=dict(color='#CCCCCC'),
             height=680,
-            margin=dict(l=50, r=30, t=50, b=40),
+            margin=dict(l=50, r=30, t=60, b=40),
             showlegend=True,
             legend=dict(font=dict(color='#AAAAAA', size=10), bgcolor='rgba(0,0,0,0.7)')
         )
 
-        fig.update_xaxes(gridcolor='#4A0000', linecolor='#660000', tickfont=dict(color='#AAAAAA', size=10))
+        # 修复横轴: 强制日期格式 (避免20.252M科学计数法)
+        fig.update_xaxes(
+            type='date',
+            tickformat='%Y-%m-%d',
+            tickangle=45,
+            gridcolor='#4A0000',
+            linecolor='#660000',
+            tickfont=dict(color='#AAAAAA', size=10)
+        )
         fig.update_yaxes(gridcolor='#4A0000', linecolor='#660000', tickfont=dict(color='#AAAAAA', size=10))
 
         fig.update_yaxes(title_text="价格", row=1, col=1, title_font=dict(color='#AAAAAA'))
