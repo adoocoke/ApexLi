@@ -40,24 +40,9 @@ def data_gathering(state: TAState) -> TAState:
     if "extra_data" not in state:
         state["extra_data"] = {}
 
-    # 兜底：如果LLM没有请求工具，自动调用相关、持仓 + 新闻工具 (确保JM/SA有数据, 解决空extra_data，并满足用户对新闻/holding可见性要求)
+    # 专心调prompt的信号：移除自动工具兜底（LLM在observation/signal_generation prompt中已明确工具调用优先，visual_analyzer优先）。extra_data仅由LLM data_requests填充。
     if not data_requests:
-        color_print("  → LLM未请求工具, 自动调用相关+持仓+新闻工具", Colors.WARNING)
-        from eaagent.a_plus_plus.tools import get_related_futures_dynamic, get_futures_holding, get_futures_news
-        related_result = get_related_futures_dynamic(state.get("current_symbol", "RB2610.SHF"))
-        holding_result = get_futures_holding(state.get("current_symbol", "RB2610.SHF"))
-        news_result = get_futures_news(state.get("current_symbol", "RB2610.SHF"), limit=5)
-        state["extra_data"]["related"] = related_result
-        state["extra_data"]["holding"] = holding_result
-        news_list = news_result.get("news", []) if isinstance(news_result, dict) else (news_result if isinstance(news_result, list) else [])
-        state["news"] = news_list
-        state["extra_data"]["news"] = news_result  # 确保report_builder能从extra_data或state读取
-        color_print(f"    → 自动获取相关数据: {related_result.get('summary', 'N/A')}", Colors.OKGREEN)
-        color_print(f"    → 自动获取持仓数据: {holding_result.get('summary', holding_result.get('reason', 'N/A'))[:80]}...", Colors.OKGREEN)
-        color_print(f"    → 自动获取新闻: {news_result.get('summary', '5条宏观/产业新闻')}", Colors.OKGREEN)
-        color_print(f"    → 自动获取相关数据: {related_result.get('summary', 'N/A')}", Colors.OKGREEN)
-        color_print(f"    → 自动获取持仓数据: {holding_result.get('summary', holding_result.get('reason', 'N/A'))[:80]}...", Colors.OKGREEN)
-        color_print(f"    → 自动获取新闻: {news_result.get('summary', '5条宏观/产业新闻')}", Colors.OKGREEN)
+        color_print("  → LLM未请求额外工具 (prompt专注signals生成，visual+Playbook优先)", Colors.OKCYAN)
 
     for req in data_requests:
         if isinstance(req, str):

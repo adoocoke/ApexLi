@@ -24,11 +24,8 @@ def structured_observation(state: TAState) -> TAState:
     current_playbook = state.get("current_playbook", "v3")
 
     # 结构化prompt - 最小文字入侵，主要依赖Playbook (manager.load + build_prompt已包含输出要求/操作组/JSON Few-shot)
-    # fortress简化为铁律引用，详细规则/输出要求全部来自Playbook文件
     fortress_prompt = build_fortified_observation_prompt(current_playbook)
     playbook_content, _ = manager.load_playbook(current_playbook)
-
-    # 防止 { } 导致f-string错误
     safe_playbook = str(playbook_content).replace("{", "{{").replace("}", "}}")
 
     prompt = f"""{fortress_prompt}
@@ -36,11 +33,11 @@ def structured_observation(state: TAState) -> TAState:
 【当前 Playbook 完整内容（含输出要求、操作组纪律、JSON Few-shot）】
 {safe_playbook}
 
-以下是 {state['current_symbol']} 的日线数据（最近 {len(daily_data)} 根K线，优先视觉图片分析）：
+以下是 {state['current_symbol']} 的日线数据（最近 {len(daily_data)} 根K线，**优先视觉图片分析**）：
 
 {data_str}
 
-【任务要求】：严格按Playbook第0节输出要求执行。必须先判断匹配规则再引用。工具调用优先（holding/news等）。生成高置信signals（视觉+Playbook匹配）。输出JSON。
+【任务要求】：严格按Playbook第0节输出要求（日期+章节前缀+conf>=80+JSON only+无匹配观望+操作组）。先判断匹配规则。**工具调用优先** (visual_analyzer/holding/news/related if needed)。生成**所有**高置信signals（全历史趋势生命周期，视觉+Playbook匹配）。输出JSON。
 
 {{
   "phase": "当前所处阶段描述",

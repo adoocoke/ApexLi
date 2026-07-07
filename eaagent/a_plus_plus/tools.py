@@ -11,6 +11,7 @@ from datetime import datetime
 
 import tushare as ts
 from .utils.llm import call_vision_llm
+from eaagent.playbooks.manager import manager  # for build_prompt in visual_analyzer (Playbook structured rules)
 
 load_dotenv()
 
@@ -420,17 +421,16 @@ def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12, force_new: boo
             print(f"[VisualAnalyzer] Chart generation error: {img_err}. Using text df description for vision prompt.")
             image_ref = None
 
-        # 结构化视觉prompt - 最小prompt文字入侵，核心规则/Few-shot/输出要求全部来自Playbook文件 (manager.build_prompt)
-        # 强化: 图像缓存已在上层处理, LLM若数据充分应should_continue=false结束分析
+        # 结构化视觉prompt - 最小prompt文字入侵，核心规则/Few-shot/输出要求全部来自Playbook (manager.build_prompt)
         playbook_content = manager.build_prompt(playbook_name, max_chars=3500)
         vision_prompt = f"""你是一个经验丰富的期货K线视觉分析专家。**一步步思考** (CoT)，严格按Playbook输出JSON。
 
 **当前Playbook完整规则** (必须严格只使用此Playbook，禁止混用)：
 {playbook_content}
 
-**任务**：基于12个月纯K线图片（量柱、关键位），找出**所有**高置信买卖点（趋势全生命周期）。视觉推断必须匹配Playbook规则。
+**任务**：基于12个月纯K线图片，找出**所有**高置信买卖点（趋势全生命周期，视觉推断必须匹配Playbook规则）。
 
-**输出要求**：严格遵守Playbook第0节输出要求（具体日期、章节前缀"引用{playbook_name}-X.Y"、confidence>=80、JSON only、无匹配=观望、操作组纪律）。覆盖买入/买平、卖出/卖平组。
+**输出要求**：严格遵守Playbook第0节（日期+章节前缀+conf>=80+JSON only+无匹配观望+操作组纪律）。覆盖买入/买平、卖出/卖平。
 
 **现在开始分析图片**，只输出JSON。"""
         response = call_vision_llm(vision_prompt, image_ref)
