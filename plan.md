@@ -1,6 +1,6 @@
 # Phase 3 Checklist: Streamlit Dashboard (Killer Features) + Real LLM + Backtest
 
-**总体进度: 100%** (最新 commit 待推 | git clean | Phase 3 killer features **全部完成**：3栏Streamlit Dashboard、真实Grok-3 Vision LLM、无mock硬编码、K线+正确日期Signals标注(MA13+绿↑红↓橙↘)、动态回测(LLM signals驱动，所有reason显示)、prompt深度(CoT+Few-shot+具体日期=形态成立当天)、report_builder Mermaid+柱状图)
+**总体进度: 100%** (最新 commit 0f38c4c | git clean | Phase 3 killer features **全部完成**：3栏Streamlit Dashboard、真实Grok-3 Vision LLM、无mock硬编码、K线+正确日期Signals标注(MA13+绿↑红↓橙↘↗买平)、动态回测(LLM signals驱动，所有reason显示 + Playbook章节)、prompt深度(CoT+Few-shot+具体日期=形态成立当天 + 严格同一Playbook无混用)、report_builder Mermaid+柱状图 + 切换Playbook无触发分析 + 无日期signal防护)
 
 ### Phase 0: Web/UI 基础 (100% ✅)
 - [x] 中文主力合约菜单 + 动态 K线 (Plotly)
@@ -44,11 +44,11 @@
 - [ ] 增强 A/B 对比图
 
 ### Test & Docs (100% ✅)
-- [x] Test-First: `tests/integration/test_backtest.py` + `test_dashboard.py` (布局/组件断言通过)
-- [x] 集成测试 (真实 LLM 路径、critique_scores 传播、Vision signals、K线标注匹配)
-- [x] plan.md 更新为 **Checklist 格式** + 本次进度100%记录
-- [x] 更新 README (Phase 3完成总结、Streamlit启动方式、真实LLM配置)
-- [x] 所有bug修复 (`figure_or_data`、`NoneType`、`use_container_width`、`日期连续错误`、`ma_13/index兼容`)
+- [x] Test-First: `tests/integration/test_backtest.py` + `test_dashboard.py` + `test_kline_chart.py` (布局/组件/Playbook隔离/卖平标注/无rerun触发断言通过)
+- [x] 集成测试 (真实 LLM 路径、critique_scores 传播、Vision signals、K线标注匹配、Playbook严格隔离)
+- [x] plan.md 更新为 **Checklist 格式** + 本次进度100%记录 + 最终bug修复
+- [x] 更新 README (Phase 3完成总结、Streamlit启动方式、真实LLM配置、Playbook切换安全、买平/卖平标记)
+- [x] 所有bug修复 (`figure_or_data`、`NoneType`、`use_container_width`、`日期连续错误`、`ma_13/index兼容`、`Playbook切换触发分析`、`无日期signal标注`、`v3/zen混用`、`kline买平缺失`)
 
 ### Dependencies & Misc (90% ✅)
 - [x] requirements.txt (streamlit, vectorbt, plotly, pandas, openai/xai)

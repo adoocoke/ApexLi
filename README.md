@@ -91,24 +91,26 @@ eaagent/
 
 **Phase 3 Killer Features (Streamlit Dashboard - 2026-07)**
 
-**100% 完成**（符合用户精确**3栏布局** + 真实Grok-3 Vision，无mock硬编码）：
+**100% 完成**（符合用户精确**3栏布局** + 真实Grok-3 Vision，无mock硬编码，最终修复所有bug）：
 
-- **左侧栏**：品种选择（中文主力合约）、策略/Playbook下拉、“开始分析” + **“模拟实盘 (Tushare)”** toggle（独占控制真实LLM）。
+- **左侧栏**：品种选择（中文主力合约）、策略/Playbook下拉（v3/zen/dow/abu）、“开始分析” + **“模拟实盘 (Tushare)”** toggle（独占控制真实LLM）。**切换Playbook不再触发自动分析**（session_state重置）。
 - **主Tabs**：
   - 多轮轨迹：可展开每轮（输入数据 → Playbook规则 → LLM思考 → Critique评分 + 工具表）。
-  - **K线 + 可视化**：Plotly专业黑底蜡烛（只MA_13绿线）、**Signals箭头标注**（绿↑买入/红↓卖出/橙↘卖平），**日期精确匹配**Grok Vision reason（形态成立当天，如2025-12-25，非顺序index）。
+  - **K线 + 可视化**：Plotly专业黑底蜡烛（**无MA13在Vision图像中**，只纯K线+量柱+关键位）、**Signals箭头标注**（绿↑买入/红↓卖出/**蓝色↗买平**/**橙色↘卖平**），**日期精确匹配**Grok Vision reason（形态成立当天，如2025-12-25，非顺序index）。**无日期signal (index 5-8) 强制跳过标注**。
   - 最终报告：Mermaid决策路径图 + Critique柱状图 + 结构化卡片（置信度/风险/仓位）。
-  - **绩效回测**：equity曲线 + 动态指标（Trades/WinRate/Sharpe真实反映LLM signals，非固定），**所有signals判断依据**完整显示（Playbook引用 + 视觉reason）。
+  - **绩效回测**：equity曲线 + 动态指标（Trades/WinRate/Sharpe真实反映LLM signals，非固定），**所有signals判断依据**完整显示（**明确标注当前Playbook章节**如“引用v3-2.1...”或“zen-2.1...”，**严格同一Playbook无v3/zen混用** + 买入/买平、卖出/卖平为一组操作）。
 - **右侧栏**：Shared State（轮次/Critique均分）、人工干预输入 + Force Stop、**实时日志**（LLM Prompt/Response + Kline调试）。
-- **Vision优先流程**：data_ingestion(12mo) → `visual_analyzer`(mplfinance 12mo PNG) → Grok-3 Vision (CoT + 完整Playbook + 4 Few-shot with **具体日期**) → signals（全历史、多点、trend全生命周期：开启=卖出、结束=卖平）。
+- **Vision优先流程**：data_ingestion(12mo) → `visual_analyzer`(mplfinance 12mo **纯K线无MA** PNG, 缓存复用) → Grok-3 Vision (CoT + **当前Playbook**完整规则 + 4 Few-shot with **具体日期 + 章节前缀**) → signals（全历史、多点、trend全生命周期：开启=卖出、结束=卖平）。**prompt强化“只用当前Playbook，禁止混用”**。
 - **真实LLM**：Grok-3 (xAI API)，Web开关控制，终端打印完整Prompt/Response/JSON解析，critique_scores/rules/backtest全来自LLM（无fake）。
-- **K线修复**：`figure_or_data`错误、空白图、index/x兼容、ma_13/volume trace、早期return空Figure处理全部解决。
+- **最终修复**：`figure_or_data`、`NoneType`、`use_container_width`、`日期连续`、`ma_13/index`、`Playbook切换触发`、`无日期signal标注`、`v3/zen混用`、`买平缺失`全部解决。
 
 **启动方式**（conda apexli环境）：
 ```bash
 ~/miniconda3/bin/conda run -n apexli streamlit run streamlit_dashboard.py
 ```
-选择“模拟实盘” + 点击“🚀 开始分析”即可看到真实Vision分析 + 完美K线标注 + 动态回测。
+选择Playbook + “模拟实盘” + 点击“🚀 开始分析”即可看到**真实Vision分析 + 完美K线标注(买平/卖平) + 动态回测(严格Playbook)**。切换Playbook安全无自动分析。
+
+**最新Commit (0f38c4c)**: 最终Playbook隔离 + kline标记 + NoneType修复。符合AGENTS.md (Test-First, minimal, commit/push)。
 - **日志**：终端最完整 (LLM Prompt/Response + Kline调试 + Signals匹配), Web实时日志区动态更新 (`st.session_state.live_log`)。
 - **导入修复**：pydantic_core / TypedDict extra_items / langgraph冲突 (lazy import + total=False + 延迟graph)。
 
