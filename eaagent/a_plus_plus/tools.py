@@ -421,18 +421,44 @@ def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12, force_new: boo
             print(f"[VisualAnalyzer] Chart generation error: {img_err}. Using text df description for vision prompt.")
             image_ref = None
 
-        # 结构化视觉prompt - 最小prompt文字入侵，核心规则/Few-shot/输出要求全部来自Playbook (manager.build_prompt)
+        # 进一步放松prompt限制（按用户“我们要放松llm的prompt 限制，让llm 更自由的决定”）：注入完整Playbook + 丰富Few-shot + 明确“允许合理推断”“输出所有匹配点”“不要过度保守”
+        # 去除过多“严格禁止”“绝不能”，让Grok像直接对话一样灵活输出具体日期买卖点（历史+当前+预期，conf>=75就输出）
         playbook_content = manager.build_prompt(playbook_name, max_chars=3500)
-        vision_prompt = f"""你是一个经验丰富的期货K线视觉分析专家。**一步步思考** (CoT)，严格按Playbook输出JSON。
+        vision_prompt = f"""你是一个经验丰富的期货K线视觉分析专家。**一步步思考** (CoT)，结合图片所有细节（K线形态、量柱、关键位、位置），**自由灵活**输出**所有**高置信买卖点（历史已发生 + 当前 + 未来预期）。允许合理视觉推断（形态、量价、通道、背离），reason必须引用Playbook具体章节。
 
-**当前Playbook完整规则** (必须严格只使用此Playbook，禁止混用)：
+**当前{playbook_name} Playbook完整规则**（必须严格引用具体条目，如 v3-1.1量仓 / v3-2操作组，必须只用当前Playbook）：
 {playbook_content}
 
-**任务**：基于12个月纯K线图片，找出**所有**高置信买卖点（趋势全生命周期，视觉推断必须匹配Playbook规则）。
+**任务**：基于12个月纯K线图片，找出**所有**匹配Playbook的高置信买卖点（趋势全生命周期：开启→结束，买入/买平、卖出/卖平）。**有依据就输出**（即使conf 75+），无明确匹配才观望。输出具体日期（YYYY-MM-DD，从图片精确提取）。
 
-**输出要求**：严格遵守Playbook第0节（日期+章节前缀+conf>=80+JSON only+无匹配观望+操作组纪律）。覆盖买入/买平、卖出/卖平。
+**输出严格JSON**（只返回JSON，不要任何额外文字、解释、```）：
 
-**现在开始分析图片**，只输出JSON。"""
+{{
+  "signals": [
+    {{
+      "direction": "多头/空头/观望",
+      "trend_signal": "买入(趋势开启)/买平(趋势结束)/卖出(趋势开启)/卖平(趋势结束)/持仓/观望",
+      "trade_date": "2026-07-07",
+      "entry_zone": "3060-3080",
+      "stop_loss": "3080",
+      "target": "2980-3020",
+      "reason": "引用v3-1.1量仓分析核心逻辑 + v3-2操作组纪律：图片中2026-07-07连续阴线+放量破支撑，下降通道确认，极强做空信号（当前位置最强）。",
+      "confidence": 87
+    }}
+  ],
+  "should_continue": false,
+  "overall_trend": "空头主导"
+}}
+
+**Few-shot 示例**（严格参考，覆盖多种情况，让LLM更自由决定）：
+- 底部放量止跌锤头 → direction="多头", trend_signal="买入(趋势开启)", trade_date="2025-12-25", reason="引用v3-1.2 2B反转定式：底部放量+止跌形态，关键支撑确认，高置信买入 (82)。"
+- 高位放量阴线破前高 → direction="空头", trend_signal="卖出(趋势开启)", trade_date="2026-04-22", reason="引用v3-1.1量仓背驰 + v3-1.3趋势判断：高位放量阴线破压力，趋势开启，极强卖出 (88)。"
+- 当前连续阴线破支撑 → direction="空头", trend_signal="卖出(趋势开启)", trade_date="2026-07-07", reason="引用v3-1.1 + v3-2操作组：当前位置放量破多条支撑，下降通道下轨确认，立即做空 (87)。"
+- 反弹触压缩量回落 → direction="空头", trend_signal="卖出(趋势开启)", trade_date="2026-05-20", reason="引用v3-1.3压力确认规则：反弹失败+缩量，趋势延续 (80)。"
+- 趋势结束获利平仓 → direction="观望", trend_signal="卖平(趋势结束)", trade_date="2026-07-10", reason="引用v3-2操作组纪律：若继续下跌至支撑，获利卖平，等待新信号 (75)。"
+- 若止跌放量 → direction="多头", trend_signal="买入(趋势开启)", trade_date="2026-07-15", reason="引用v3-1.2形态：锤头+放量止跌，可轻仓试多 (65)。"
+
+**现在开始分析图片**。**输出所有匹配的高置信signal**（历史4个 + 当前最强 + 预期），conf>=75就输出，不要过度保守或全观望。如果你觉得图片信息充分（趋势清晰、多规则命中），should_continue=false。自由决定买卖点和日期！"""
         response = call_vision_llm(vision_prompt, image_ref)
 
         # Parse JSON (common for both image and text fallback) - robust against None/empty
