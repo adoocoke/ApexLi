@@ -80,17 +80,12 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
             decreasing_line_width=1.0,
         ), row=1, col=1)
 
-        # 只显示 MA_13 (用户要求) - 兼容set_index后df['trade_date']可能不存在
-        x_for_ma = df.index if isinstance(df.index, pd.DatetimeIndex) else df.get('trade_date', df.index)
+        # **不显示MA13/任何均线** (用户最新要求: 生成图片/分析严格按Playbook量仓/背驰/定式, MA不在分析内容里)
+        # 只保留纯K线 + 量柱 (K线tab仍可显示MA13如果计算, 但Vision图像无MA)
         if 'ma_13' in df.columns:
-            fig.add_trace(go.Scatter(
-                x=x_for_ma,
-                y=df['ma_13'],
-                name='MA_13',
-                line=dict(color='#00FF7F', width=2.0)
-            ), row=1, col=1)
+            print("[Kline] MA13已计算但根据Playbook要求不显示在Vision图像中 (仅用于Dashboard K线可选)")
         else:
-            print("[Kline] ma_13 未计算, 请确认get_futures_daily_with_ma返回该列")
+            print("[Kline] 无MA13 (符合最新要求: 严格follow Playbook, 无均线)")
 
         # 成交量（按涨跌着色） - 兼容index
         x_for_vol = df.index if isinstance(df.index, pd.DatetimeIndex) else df.get('trade_date', range(len(df)))
@@ -120,7 +115,7 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
                 if i >= len(df): 
                     print(f"  Signal {i} 超出df范围, 跳过")
                     break
-                # 关键修复: 使用reason中提取的日期 (Grok Vision Response 必须包含具体日子如"2025-12-25"或"11月下旬")。信号=形态成立当天 (Playbook规则匹配那天买入/卖出)
+                # 关键修复: 使用reason中提取的日期 (Grok Vision Response **必须**包含具体日子如"2025-12-25")。**无日期的signal (index 5-8等) 必须被视为无效/观望**, 绝不标注
                 reason = str(sig.get("reason", ""))
                 import re
                 date_match = re.search(r'(\d{4}-\d{2}-\d{2})', reason)
@@ -133,9 +128,9 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
                     actual_date = df.index[row_idx].date() if hasattr(df.index[row_idx], 'date') else df.index[row_idx]
                     print(f"  Signal {i}: reason日期 {target_date.date()} → df行 {row_idx} (date={actual_date})")
                 else:
-                    # 无具体日期时fallback，但prompt已要求必须包含日期 (形态成立那天)
-                    row_idx = min(i, len(df)-1)
-                    print(f"  Signal {i}: 无日期 (prompt需改进: '形态成立那天 e.g. 2025-12-25'), 使用index {row_idx}")
+                    # **无具体日期 = 无效signal (prompt已要求必须有日期 + 明确规则)**, 跳过标注, 视为观望
+                    print(f"  Signal {i}: **无日期 (prompt已改进但LLM仍输出无日期signal)**, 跳过标注 (视为观望, 不应出现在Signals列表)")
+                    continue  # 关键: 完全跳过无日期signal的标注
 
                 direction = str(sig.get("direction", "")).lower()
                 trend_sig = str(sig.get("trend_signal", sig.get("position_action", sig.get("direction", "")))).lower()
@@ -145,14 +140,28 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
                 y_pos = float(df.iloc[row_idx]["close"])
                 date = df.index[row_idx] if isinstance(df.index, pd.DatetimeIndex) else df.iloc[row_idx]["trade_date"]
 
-                # 修复: 箭头大小/位置优化 (更小箭头, 紧贴K线, 日期x使用正确格式)
-                ax = 0.98 if "买" in direction + trend_sig + reason else 1.02
-                ay = -30 if "买" in direction + trend_sig + reason else 30
-                if any(k in direction + trend_sig + reason for k in ["买入", "多头", "buy", "long", "做多", "看多"]):
+                # 优先匹配卖平/买平 (修复: 买平/卖平标记缺失, 现在trend_sig/position_action优先于direction)
+                if any(k in trend_sig + direction + reason for k in ["买平", "买入后平", "平仓", "减仓"]):
+                    fig.add_annotation(
+                        x=date, y=y_pos,
+                        text="↗买平", showarrow=True, arrowhead=2, arrowsize=1.5, arrowcolor="#00AAFF", arrowwidth=2,
+                        ax=0, ay=-40, font=dict(color="#00AAFF", size=11, family="Arial Black"), 
+                        bgcolor="rgba(0,170,255,0.25)", bordercolor="#00AAFF"
+                    )
+                    print(f"  → 标注 ↗买平 at {date} (y={y_pos:.1f})")
+                elif any(k in trend_sig + direction + reason for k in ["卖平", "平仓", "卖平(趋势结束)", "减仓", "震荡", "趋势结束", "趋势完结", "观望"]):
+                    fig.add_annotation(
+                        x=date, y=y_pos,
+                        text="↘卖平", showarrow=True, arrowhead=1, arrowsize=1.2, arrowcolor="#FFAA00", arrowwidth=2,
+                        ax=0, ay=40, font=dict(color="#FFAA00", size=10, family="Arial Black"), 
+                        bgcolor="rgba(255,170,0,0.25)", bordercolor="#FFAA00"
+                    )
+                    print(f"  → 标注 ↘卖平 at {date} (y={y_pos:.1f})")
+                elif any(k in direction + trend_sig + reason for k in ["买入", "多头", "buy", "long", "做多", "看多"]):
                     fig.add_annotation(
                         x=date, y=y_pos,
                         text="↑买入", showarrow=True, arrowhead=2, arrowsize=1.5, arrowcolor="#00FF00", arrowwidth=2,
-                        ax=0, ay=ay, font=dict(color="#00FF00", size=11, family="Arial Black"), 
+                        ax=0, ay=-30, font=dict(color="#00FF00", size=11, family="Arial Black"), 
                         bgcolor="rgba(0,255,0,0.25)", bordercolor="#00FF00"
                     )
                     print(f"  → 标注 ↑买入 at {date} (y={y_pos:.1f})")
@@ -160,18 +169,10 @@ def create_candlestick_chart(df: pd.DataFrame, symbol: str = "", signals: list =
                     fig.add_annotation(
                         x=date, y=y_pos,
                         text="↓卖出", showarrow=True, arrowhead=2, arrowsize=1.5, arrowcolor="#FF0000", arrowwidth=2,
-                        ax=0, ay=ay, font=dict(color="#FF0000", size=11, family="Arial Black"), 
+                        ax=0, ay=30, font=dict(color="#FF0000", size=11, family="Arial Black"), 
                         bgcolor="rgba(255,0,0,0.25)", bordercolor="#FF0000"
                     )
                     print(f"  → 标注 ↓卖出 at {date} (y={y_pos:.1f})")
-                elif any(k in direction + trend_sig + reason for k in ["卖平", "平仓", "卖平(趋势结束)", "减仓", "震荡", "趋势结束", "趋势完结", "观望"]):
-                    fig.add_annotation(
-                        x=date, y=y_pos,
-                        text="↘卖平", showarrow=True, arrowhead=1, arrowsize=1.2, arrowcolor="#FFAA00", arrowwidth=2,
-                        ax=0, ay=ay, font=dict(color="#FFAA00", size=10, family="Arial Black"), 
-                        bgcolor="rgba(255,170,0,0.25)", bordercolor="#FFAA00"
-                    )
-                    print(f"  → 标注 ↘卖平 at {date} (y={y_pos:.1f})")
                 else:
                     print(f"  → 无匹配关键词, direction={direction}, trend={trend_sig}, reason关键词={reason[:50]}")
 

@@ -15,8 +15,8 @@ def llm_critique(state: TAState) -> TAState:
     prev_signal = signals[-2] if len(signals) >= 2 else None
     prev_issues = state.get("previous_issues", [])
 
-    # 构建 Prompt - 让 LLM 自主决定轮次（不再强制多轮）
-    prompt = f"""你是一个严格且专业的交易策略风险审查员。根据当前信息**自主决定是否需要继续多轮分析**（不再强制固定轮次）。如果数据已充分（置信度>85%、信号一致、无新风险/矛盾、工具数据足够），直接 should_continue=false 结束；否则继续调用工具获取更多持仓/新闻/相关品种数据。
+    # 构建 Prompt - 让 LLM 自主决定轮次（不再强制多轮）。强化避免重复相同视觉图像
+    prompt = f"""你是一个严格且专业的交易策略风险审查员。根据当前信息**自主决定是否需要继续多轮分析**（不再强制固定轮次）。如果数据已充分（置信度>85%、信号一致、无新风险/矛盾、工具数据足够、**K线图像已充分分析无新形态**），直接 should_continue=false 结束；否则继续调用工具获取更多持仓/新闻/相关品种数据（**不要重复调用相同visual_analyzer或生成相同图像**）。
 
 当前轮次信息：
 - 轮次: {state['iteration']} / MAX=5
@@ -24,6 +24,7 @@ def llm_critique(state: TAState) -> TAState:
 - 本轮发现的问题: {issues}
 - 本轮交易信号: {signals[-1] if signals else '无'}
 - 本轮结构化观察摘要: {observations[-1] if observations else '无'}
+- 图像缓存: {observations[-1].get('is_cached_image', False) if observations else False} (True=复用相同12mo图像)
 
 """
 

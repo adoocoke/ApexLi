@@ -79,7 +79,7 @@ def _get_mock_observation(symbol: str) -> Dict[str, Any]:
     text = f"""[{symbol} 模拟结构化观察]
 - 最新收盘: {data['latest_price']} | 价格变化: {data['price_change']:+.2f} ({data['price_change_pct']:+.2f}%)
 - 成交量变化 {data['volume_change']:+d} ({data['volume_change_pct']:+.1f}%), 持仓量变化 {data['oi_change']:+d}
-- ATR: {data['atr']} | MA20: {data['ma20']}
+- ATR: {data['atr']} | 量仓: 持仓/成交量 (严格Playbook, 无MA)
 - {data['key_levels']['key_levels_text']}"""
     return {
         "symbol": symbol, "status": "mock",
@@ -241,7 +241,7 @@ def get_structured_observation(
     text = f"""[{symbol} {period} 结构化观察]
 - 最新收盘: {latest['close']} | 价格变化: {price_chg:+.2f} ({price_pct:+.2f}%)
 - {vol_oi['summary']}
-- ATR: {atr} | MA20: {ma20}
+- ATR: {atr} | 量仓: 持仓/成交量 (严格Playbook, 无MA)
 - {key_levels['key_levels_text']}"""
 
     result = {
@@ -386,50 +386,62 @@ def get_futures_news(symbol: str = "", limit: int = 5) -> Dict[str, Any]:
         return {"status": "error", "reason": f"News fetch failed: {str(e)[:80]}", "news": []}
 
 
-def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12) -> Dict[str, Any]:
+def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12, force_new: bool = False, playbook_name: str = "v3") -> Dict[str, Any]:
     """New Vision Tool - Phase 3+ Upgrade: Grok视觉K线分析
-    1. 获取12个月df (MA13 only, clean)
-    2. 生成Plotly K线图 (reuse web.charts.kline, no signals to avoid bias)
-    3. 转为base64 PNG
-    4. 调用call_vision_llm (Grok-3多模态) + 强Playbook prompt
-    5. 解析返回完整signals列表 (全历史买卖点, trend start/end, detailed reason引用规则+视觉模式)
-    优先用于observation/signal_generation，增强文本分析。
+    1. 检查缓存 (state或全局) - 如果已有相同symbol的12mo图像则复用 (避免重复生成/发送相同图像)
+    2. 仅第一轮或force_new=True时生成新mplfinance PNG
+    3. 调用call_vision_llm (Grok-3多模态) + 强**当前Playbook** prompt (严格只用{playbook_name}章节, 禁止混用zen/v3)
+    4. 解析返回完整signals列表 (全历史买卖点, trend start/end, detailed reason引用规则+视觉模式)
+    优先用于observation (第一轮)，后续轮次复用visual_signals。LLM应在数据充分时结束分析。
     """
+    # 简单全局缓存 (per symbol + playbook, 12mo image) - 避免多轮重复生成相同图像
+    cache_key = f"vision_{symbol}_{months}mo_{playbook_name}"
+    if not force_new and cache_key in _observation_cache:
+        print(f"[VisualAnalyzer] 复用缓存图像: {cache_key} (避免重复生成相同12mo K线图, 当前Playbook={playbook_name})")
+        cached = _observation_cache[cache_key]
+        return cached
+
     try:
         from eaagent.tools.tushare_futures import get_futures_daily_with_ma
         df = get_futures_daily_with_ma(symbol, months=months, ma_periods=[13])
         if df.empty:
             return {"status": "error", "reason": "No K-line data", "signals": []}
 
-        # 使用 mplfinance (可靠, 复用visualization.py) 生成12个月图片 (MA13 + 关键位, 避免Plotly错误)
+        # 使用 mplfinance (可靠, 复用visualization.py) 生成12个月图片 (**无MA13/MA20**, 只关键位/纯K线, 严格按Playbook量仓/背驰/定式分析)
+        # 仅在需要新图像时生成 (第一轮或force_new)
+        image_ref = None
         try:
             from eaagent.a_plus_plus.visualization import plot_kline_with_levels
-            # 强制12个月lookback (确保图片是12个月数据, 用户要求)
-            img_path = plot_kline_with_levels(symbol, period="D", lookback=260)  # ~12个月交易日
+            # 强制12个月lookback (确保图片是12个月数据, 用户要求) + show_ma20=False
+            img_path = plot_kline_with_levels(symbol, period="D", lookback=260, show_ma20=False)
             image_ref = str(img_path)
-            print(f"[VisualAnalyzer] 12个月 mplfinance K线图生成成功: {image_ref} (用于Grok视觉分析 - 严格基于图片, 无文本kline数据)")
+            print(f"[VisualAnalyzer] 12个月 mplfinance K线图生成成功: {image_ref} (**无MA13**, 严格基于图片+Playbook, 无文本kline数据)")
         except Exception as img_err:
             print(f"[VisualAnalyzer] Chart generation error: {img_err}. Using text df description for vision prompt.")
             image_ref = None
 
         # 强视觉prompt (Agent 有限选择基于图片分析, kline数据就是图片数据) - 深度思考版 + Few-shot
+        # 强化: 如果图像无新信息或数据充分, 直接结束分析 (避免重复发送相同图像)
         vision_prompt = f"""你是一个期货K线视觉分析专家。**一步步思考** (CoT + Few-shot):
 
-**任务**：严格**基于附加图像** (12个月完整K线, MA13, 量柱, 形态) 分析, **不要使用任何文本K线数据** (kline数据就是图片的数据)。按Playbook完整规则标记**所有**匹配买卖点 (4-6个, 覆盖全年趋势全生命周期: 趋势开启=卖出, 趋势结束=卖平, 震荡=卖平/观望)。只有完全无视觉+规则依据才"观望"。
+**任务**：严格**基于附加图像** (12个月纯K线 + 量柱 + 关键位, **无MA13/任何均线**)。**不要使用任何文本K线数据或MA相关内容** (kline数据就是图片的数据, **严格只使用当前选定的{playbook_name} Playbook**, 禁止混用其他Playbook概念如zen/v3交叉)。按**当前{playbook_name} Playbook**完整规则标记**所有**匹配买卖点 (4-6个, 覆盖全年趋势全生命周期: 趋势开启=卖出, 趋势结束=卖平, 震荡=卖平/观望)。只有完全无视觉+当前Playbook规则依据才"观望"。
 
-**Playbook完整规则** (必须引用具体条目):
+**重要规则**：这是**相同12个月K线图像** (多次轮次可能复用同一张图)。如果图像已提供足够信息 (信号一致、高置信、当前{playbook_name} Playbook规则充分覆盖、无新矛盾), **直接输出should_continue=false或结束分析**，不要要求重复相同数据/图像。仅在需要新工具数据 (holding/news/related)时继续。**所有reason必须以“引用{playbook_name}-X.Y”开头**。
+
+**当前Playbook完整规则** (必须严格引用当前{playbook_name}具体条目, **不要提及MA13或任何均线** - MA不在分析内容里):
 - 2.1量仓分析: 持仓稳步增加+价格回落 = 空头燃料 (主力增仓确认趋势开启)。
-- 2.3趋势判断: MA13金叉上行=多头趋势开启 (买入/持仓), 死叉下行=趋势结束 (卖平)。
+- 2.3趋势判断: 基于量仓共振和形态判断趋势开启/结束 (不要使用MA/均线)。
 - 3.1背驰判断: 价格新高/新低但MACD柱/量柱面积缩小 = 趋势反转 (卖出或卖平)。
 - 4.2定式确认: 特定K线形态 (吞没, 锤头, 上影, 长阴) + 量仓共振 = 高置信入场/出场。
 
-**Few-shot (真实12个月图像例子, 必须包含具体日期如2025-XX-XX = 形态成立当天)**:
-1. 图像 (RB 2025.4): **2025-04-08** 连续阳线突破MA13 + 放量持仓增加 → direction="多头", trend_signal="卖出(趋势开启)", reason="视觉观察: 图像**2025-04-08**附近阳线突破MA13+放量, Playbook 2.1量仓(持仓增加燃料)+2.3趋势(金叉开启)", confidence=88
-2. 图像 (RB 2025.5): **2025-05-11** 长上影吞没 + MA13死叉 + 量柱收窄 → direction="空头", trend_signal="卖出(趋势开启)", reason="视觉观察: 图像**2025-05-11**顶部反转上影+死叉, Playbook 3.1背驰+2.3趋势结束", confidence=85
-3. 图像 (RB 2025.5下旬): **2025-05-25** 阴线沿MA13下行, 无明显背驰 → direction="空头", trend_signal="持仓", reason="视觉观察: 图像**2025-05-25**后趋势延续压价, Playbook 2.3死叉延续", confidence=75
-4. 图像 (RB 2025.6): **2025-06-23** 底部长下影 + 量柱萎缩 + MA13趋缓 → direction="空头", trend_signal="卖平(趋势结束)", reason="视觉观察: 图像**2025-06-23**底部背驰+定式失效, Playbook 3.1+4.2, 趋势结束信号", confidence=82
+**Few-shot (真实12个月图像例子, 必须包含具体日期如2025-XX-XX = 形态成立当天, **严格只用当前{playbook_name} Playbook, 所有reason必须以“引用{playbook_name}-X.Y”开头, 禁止任何zen/v3混用**)**:
+1. 图像 (RB 2025.4, 当前{playbook_name}): **2025-04-08** 连续阳线 + 放量持仓增加 → direction="多头", trend_signal="卖出(趋势开启)", reason="引用{playbook_name}-2.1量仓分析核心逻辑（当前Playbook {playbook_name}）：图像**2025-04-08**附近阳线+放量, 持仓增加提供燃料, 符合{playbook_name}规则", confidence=88
+2. 图像 (RB 2025.5, 当前{playbook_name}): **2025-05-11** 长上影吞没 + 量柱收窄 → direction="空头", trend_signal="卖出(趋势开启)", reason="引用{playbook_name}-3.1背驰判断（当前Playbook {playbook_name}）：图像**2025-05-11**顶部反转上影+量柱收窄, 符合{playbook_name}背驰判断", confidence=85
+3. 图像 (RB 2025.5下旬, 当前{playbook_name}): **2025-05-25** 阴线 + 量能变化, 无明显背驰 → direction="空头", trend_signal="持仓", reason="引用{playbook_name}-2.3趋势判断与行情选择（当前Playbook {playbook_name}）：图像**2025-05-25**后趋势延续, 量仓共振, 符合{playbook_name}规则", confidence=75
+4. 图像 (RB 2025.6, 当前{playbook_name}): **2025-06-23** 底部长下影 + 量柱萎缩 → direction="空头", trend_signal="卖平(趋势结束)", reason="引用{playbook_name}-4.2定式确认（当前Playbook {playbook_name}）：图像**2025-06-23**底部背驰+定式失效, 趋势结束, 买入/买平或卖出/卖平为一组操作 (破规则后必须平仓)", confidence=82
 
-**输出严格JSON** (不要任何额外文字, 只返回JSON对象):
+**输出严格JSON** (不要任何额外文字, 只返回JSON对象, **只输出有明确Playbook规则匹配 + 具体日期的高置信signal (confidence>=75)**。**无明确原因/规则匹配/无日期的index (如5-8)绝不能输出为signal**, 必须全部归为**观望** + reason="无明确Playbook规则匹配 (index 5-8无依据或无日期), 严格观望"):
+
 {{
   "signals": [
     {{
@@ -438,14 +450,15 @@ def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12) -> Dict[str, A
       "entry_zone": "价格区间或N/A",
       "stop_loss": "止损位或N/A",
       "target": "目标位或N/A",
-      "reason": "视觉观察: 图像中**2025-12-25** (或具体形态成立那天)连续阴线跌破MA13+放量长柱, 结合Playbook 2.1量仓(持仓增加确认空头燃料) + 2.3趋势(死叉开启), 因此给出signal。",
+      "reason": "引用v3-2.1量仓分析核心逻辑（当前Playbook v3）：图像中**2025-12-25** (或具体形态成立那天)连续阴线+放量长柱, 持仓增加确认空头燃料, 符合v3规则, 因此给出signal (买入/买平或卖出/卖平为一组操作, 破规则后必须平仓; 严格同一Playbook, 无混用zen概念)。",
       "confidence": 85
     }}
-    // 输出4-6个覆盖全年, 每个reason必须包含具体日期如2025-12-25
-  ]
+    // **严格只输出4-6个有明确日期 + Playbook规则匹配的高置信signal**。**任何无日期或index 5-8无明确依据的必须全部为观望**, reason必须解释“无Playbook依据或无具体日期”
+  ],
+  "should_continue": false  // 如果图像/数据已充分或无新高置信匹配, 推荐结束分析
 }}
 
-**图像已附加** (12个月mplfinance K线图, MA13+关键位, 严格视觉分析, 不要文本数据)。一步步思考后直接返回JSON。"""
+**图像已附加** (12个月**纯K线+量柱+关键位** mplfinance图, **无任何MA13/均线**, 严格视觉分析 + **严格follow Playbook** (只量仓/背驰/定式, 不要MA/均线); 可能与上一轮相同)。一步步思考后直接返回JSON (**只输出有明确日期和规则匹配的signal**, 无日期/index 5-8必须观望, 如果无新信息则should_continue=false)。"""
 
         response = call_vision_llm(vision_prompt, image_ref)
 
@@ -464,22 +477,40 @@ def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12) -> Dict[str, A
             if not isinstance(signals, list):
                 signals = []
 
-            print(f"[VisualAnalyzer] 成功提取 {len(signals)} 个视觉signals (Grok vision + Playbook)")
-            return {
+            # 过滤无日期/低conf/无明确规则的signal (修复index 5-8无原因问题)
+            filtered_signals = []
+            for s in signals:
+                if s.get("confidence", 0) >= 75 and re.search(r'\d{4}-\d{2}-\d{2}', str(s.get("reason", ""))):
+                    filtered_signals.append(s)
+                else:
+                    print(f"[VisualAnalyzer] 过滤无效signal (无日期或conf<75): {s.get('reason', '')[:60]}")
+            signals = filtered_signals
+
+            print(f"[VisualAnalyzer] 成功提取 {len(signals)} 个视觉signals (Grok vision + 当前{playbook_name} Playbook)")
+            result = {
                 "status": "success",
                 "symbol": symbol,
                 "signals": signals,
                 "image_path": str(image_ref) if 'image_ref' in locals() and image_ref else "text_fallback",
                 "source": "grok_vision",
-                "months_used": 12
+                "months_used": 12,
+                "playbook": playbook_name,
+                "should_continue": True  # default, LLM can override in JSON
             }
+            # Cache the result for subsequent rounds (avoid re-generating same image)
+            _observation_cache[cache_key] = result
+            return result
         except Exception as parse_err:
             print(f"[VisualAnalyzer] JSON解析失败: {parse_err}, raw: {str(response)[:200] if response else 'None'}")
-            return {"status": "error", "reason": "JSON parse failed", "signals": []}
+            result = {"status": "error", "reason": "JSON parse failed", "signals": [], "playbook": playbook_name}
+            _observation_cache[cache_key] = result  # cache error too
+            return result
 
     except Exception as e:
         print(f"[VisualAnalyzer] Error: {e}")
-        return {"status": "error", "reason": str(e)[:100], "signals": []}
+        result = {"status": "error", "reason": str(e)[:100], "signals": [], "playbook": playbook_name}
+        _observation_cache[cache_key] = result
+        return result
 
 
 # Register these in eaagent_wrapper.py for LLM calling (news + existing tools + visual_analyzer)

@@ -90,12 +90,13 @@ class APlusPlusReActAgent(ReActAgent):
 
         self.add_tool(
             name="visual_analyzer",
-            description="Grok视觉K线分析工具。输入symbol，返回基于图像+Playbook的全历史高置信买卖点signals列表 (direction, trend_signal, reason引用规则+视觉模式, confidence)。优于纯文本分析，尤其趋势开启/结束判断。12个月数据，MA13清晰。",
+            description="Grok视觉K线分析工具。输入symbol，返回基于图像+**当前Playbook**的全历史高置信买卖点signals列表 (direction, trend_signal, reason引用规则+视觉模式, confidence)。优于纯文本分析，尤其趋势开启/结束判断。12个月**纯K线+量柱+关键位** (无MA13/任何均线, 严格只用当前playbook_name章节, 禁止v3/zen混用)。",
             parameters={
                 "type": "object",
                 "properties": {
                     "symbol": {"type": "string", "description": "期货合约代码 (e.g. RB2610.SHF)"},
-                    "months": {"type": "integer", "description": "历史月份，默认12", "default": 12}
+                    "months": {"type": "integer", "description": "历史月份，默认12", "default": 12},
+                    "playbook_name": {"type": "string", "description": "当前Playbook版本 (v3/zen/dow/abu)", "default": "v3"}
                 },
                 "required": ["symbol"]
             },

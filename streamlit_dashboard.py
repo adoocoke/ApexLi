@@ -41,10 +41,19 @@ st.markdown("**Phase 3 杀手级 Dashboard** - 多轮分析 + 回测 + A/B 测�
 with st.sidebar:
     st.header("📍 控制面板")
     popular = get_popular_main_contracts()
-    symbol = st.selectbox("品种选择", popular, index=0)
-    strategy = st.selectbox("策略模式", ["full", "core", "idonly"], index=0)
-    playbook = st.selectbox("Playbook 版本", ["v3", "zen", "dow", "abu"], index=0)
-    use_real = st.toggle("模拟实盘 (Tushare)", value=False)
+    symbol = st.selectbox("品种选择", popular, index=0, key="symbol_select")
+    strategy = st.selectbox("策略模式", ["full", "core", "idonly"], index=0, key="strategy_select")
+    playbook = st.selectbox("Playbook 版本", ["v3", "zen", "dow", "abu"], index=0, key="playbook_select")
+    use_real = st.toggle("模拟实盘 (Tushare)", value=False, key="real_toggle")
+
+    # 防止selectbox变更触发rerun自动分析 (只在明确点击按钮时运行)
+    if "last_playbook" not in st.session_state:
+        st.session_state.last_playbook = playbook
+    if playbook != st.session_state.last_playbook:
+        st.session_state.run_analysis = False
+        st.session_state.last_playbook = playbook
+        st.session_state.final_state = None  # 清除旧结果
+
     if st.button("🚀 开始分析", type="primary"):
         st.session_state.run_analysis = True
     if st.button("⏹️ 强制结束"):
@@ -193,7 +202,7 @@ with tab4:
 # 右侧栏 (固定) - Shared State + 实时日志 + 干预 (Phase 3 killer feature)
 with st.sidebar:
     st.header("📊 Shared State & 实时日志")
-    final_state = st.session_state.get("final_state", {})
+    final_state = st.session_state.get("final_state", {}) or {}
     obs_count = len(final_state.get('observations', []))
     scores = final_state.get("critique_scores", [85])
     avg_score = round(sum(scores)/len(scores)) if scores else 85
@@ -231,6 +240,10 @@ if __name__ == "__main__":
     print("   - 选择 '模拟实盘 (Tushare)' 切换真实LLM (需 XAI_API_KEY)")
     print("   - LLM Prompt 和 Grok Response 实时打印到终端 (llm.py)")
     print("   - Web 端 '实时日志' 文本区也会展示示例 (真实运行时终端日志更完整)")
-    # 避免自动运行分析 (让用户手动点击按钮)
+    # 避免自动运行分析 (让用户手动点击按钮) + 初始化playbook跟踪
     if "run_analysis" not in st.session_state:
         st.session_state.run_analysis = False
+    if "last_playbook" not in st.session_state:
+        st.session_state.last_playbook = "v3"
+    if "final_state" not in st.session_state:
+        st.session_state.final_state = {}

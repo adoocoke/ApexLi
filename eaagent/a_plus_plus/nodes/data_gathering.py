@@ -97,7 +97,7 @@ def data_gathering(state: TAState) -> TAState:
             color_print(f"    → 已获取相关品种数据 {len(state['extra_data'].get('related_futures', []))} 条 for {state.get('current_symbol')} (symbols: {symbols})", Colors.OKGREEN)
 
         elif data_type == "技术指标" or "technical" in data_type.lower():
-            indicators = req.get("indicators", ["MA5", "MA13", "MA20"])
+            indicators = req.get("indicators", ["volume", "oi"])  # 严格Playbook (量仓为主, 无MA13/均线)
             ma_periods = [int(''.join(filter(str.isdigit, x))) for x in indicators if any(c.isdigit() for c in x)]
             df = get_futures_daily_with_ma(state["current_symbol"], months=3, ma_periods=ma_periods or [5, 13, 20])
             state["extra_data"]["technical_indicators"] = df.to_dict("records") if not df.empty else []

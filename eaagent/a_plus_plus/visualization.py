@@ -12,11 +12,11 @@ def plot_kline_with_levels(
     symbol: str,
     period: Literal["D", "30"] = "D",
     lookback: int = 60,
-    show_ma20: bool = True,
+    show_ma20: bool = False,  # 默认关闭MA (用户要求: 生成图片不要MA13/MA20, 严格按Playbook分析量仓/背驰/定式)
     save_dir: str = "artifacts/charts"
 ) -> str:
     """
-    绘制K线图 + MA20 + 射线式支撑压力位
+    绘制K线图 + 射线式支撑压力位 (无MA13/MA20，按Playbook要求: 只看量仓、背驰、定式形态)
     - 支撑位：红色虚线（从实际位置向右延长）
     - 压力位：绿色虚线（从实际位置向右延长）
     """

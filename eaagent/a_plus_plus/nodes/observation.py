@@ -96,19 +96,32 @@ def structured_observation(state: TAState) -> TAState:
 
     from eaagent.a_plus_plus.utils.llm import call_llm
     from eaagent.a_plus_plus.tools import visual_analyzer
-    # Vision upgrade: 尝试visual_analyzer获取图像-based signals (Grok视觉优于文本K线分析)
-    visual_result = visual_analyzer(state.get("current_symbol", "RB2610.SHF"), months=12)
+
+    # Vision upgrade: 只在第一轮或有新data_requests时调用visual_analyzer (复用缓存图像, 避免重复生成/发送相同12mo PNG)
+    is_first_round = len(state.get("observations", [])) == 0
+    has_new_data_requests = bool(state.get("observations", [{}])[-1].get("data_requests", [])) if state.get("observations") else True
+    force_new_image = is_first_round or has_new_data_requests
+
+    visual_result = visual_analyzer(
+        state.get("current_symbol", "RB2610.SHF"),
+        months=12,
+        force_new=force_new_image,
+        playbook_name=state.get("current_playbook", "v3")
+    )
+
     if visual_result.get("status") == "success" and visual_result.get("signals"):
-        print(f"[Observation] Visual Analyzer 提供 {len(visual_result['signals'])} 个高置信signals (图像+Playbook)，优先使用")
+        print(f"[Observation] Visual Analyzer 提供 {len(visual_result['signals'])} 个高置信signals (图像+Playbook)，优先使用 {'(新图像)' if force_new_image else '(缓存图像)'}")
         state["signals"] = visual_result["signals"]  # 直接注入state，供后续signal_generation/回测使用
         obs_data = {
             "phase": "视觉K线分析完成",
             "trading_bias": "基于Grok图像模式",
-            "playbook_references": [{"rule": "视觉+Playbook综合", "match_reason": "Grok vision分析完整K线图像，输出多买卖点"}],
+            "playbook_references": [{"rule": f"视觉+{state.get('current_playbook', 'v3')} Playbook综合", "match_reason": f"Grok vision分析完整K线图像，输出多买卖点 (严格引用{state.get('current_playbook', 'v3')}章节, 同一Playbook内买入/买平或卖出/卖平为一组操作)"}],
             "data_requests": [],
             "visual_signals": visual_result["signals"],
-            "image_path": visual_result.get("image_path")
+            "image_path": visual_result.get("image_path"),
+            "is_cached_image": not force_new_image
         }
+        # LLM prompt已强化: 数据充分时should_continue=false, 避免重复相同图像
     else:
         print("[Observation] Visual fallback to text LLM analysis")
         response = call_llm(prompt, system_prompt)
