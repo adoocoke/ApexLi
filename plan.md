@@ -102,42 +102,38 @@
 
 避免循环导入、保持generator yield兼容、确保prompt捕获和50%宽度报告不回归。
 
-## Critical Files (关键文件) - 包含 Phase 3 新功能 (直接进入Phase3)
-- `streamlit_dashboard.py` (**主入口** - 3栏布局：左侧栏品种/策略/Playbook + 主Tabs (多轮轨迹时间轴/K线可视化/最终报告/绩效回测) + 右侧栏 Shared State/人工干预/实时日志)。
-- `backtest/engine.py` (VectorBT 回测引擎 - 单/多品种批量、资金曲线 + Sharpe/MaxDD/WinRate 等全套指标)。
-- `evaluation/ab_test.py` (A/B 测试 Agent vs 纯规则 + 样本内外验证)。
-- `eaagent/a_plus_plus/graph.py` (增强：thread_id 持久化、人工介入钩子、Critique 评分入 State)。
-- `web/report_builder.py` (增强：添加 Mermaid 决策路径图 + Critique 各轮评分柱状图 (Plotly))。
-- `eaagent/a_plus_plus/state.py` (扩展 critique_scores + multi_timeframe_analysis)。
-- `eaagent/a_plus_plus/nodes/steering.py` (增强人工介入 + 风险)。
-- `java_agent/main.java` (LangGraph4j 骨架 - 可选)。
-- `docker/Dockerfile` + `api/main.py` (FastAPI 生产接口)。
-- `tests/integration/test_backtest.py + test_dashboard.py` (Test-First)。
-- `docs/wiki/Streamlit-Dashboard-Layout.md` (3栏布局图 + Mermaid 示例)。
-- 现有 `web/app_graph.py + web/report_builder.py + eaagent/a_plus_plus/*` (复用 kline、report、graph)。
+## 今日总结 (2026-07-07) - Phase 3 Killer Features 收尾
 
-## Existing Functions/Utilities to Reuse (带文件:行号)
-- `eaagent/a_plus_plus/graph.py:105-350` (现有nodes: observation, data_gathering, signal_generation, quality_sensor, llm_critique, final_output；复用conditional edges + should_continue)。
-- `eaagent/a_plus_plus/nodes/observation.py:18-110` (structured_observation + data_requests + prompt捕获)。
-- `eaagent/a_plus_plus/tools.py:262-400` (get_futures_holding, get_related_futures_dynamic, get_futures_news — 扩展为Sensors)。
-- `eaagent/a_plus_plus/state.py` (TAState — 扩展为AnalysisState)。
-- `web/app_graph.py:17-62` (run_analysis generator + full_log + extract_ts_code + 50%宽度Row)。
-- `eaagent/playbooks/manager.py` (load + build_prompt — 升级为load_rules_yaml)。
-- `tests/integration/test_futures_apis.py + test_graph_integration.py` (复用Tushare/Web测试框架)。
-- AGENTS.md (Test-First流程、minimal、Chinese responses)。
+**总体进度**：**100%** (Phase 3 Checklist全部落地，最新commit `ab5fd92`)。Streamlit 3栏Dashboard、真实Grok-3 Vision LLM (无mock硬编码，由Web开关控制)、K线信号标注 (精确日期、买平/卖平、MA13 only)、动态回测 (LLM signals驱动，所有reason+Playbook章节显示)、Mermaid决策路径 + Critique柱状图、Playbook v3/zen严格隔离 + 操作组纪律 (Playbook文件结构化)、prompt最小化 (manager.build_prompt()驱动，少文字入侵) 全部完成。
 
-## Implementation Steps (5-phase workflow)
-1. **Orient & Clarify**：阅读**两个 Share 链接**（长期 Harness 计划 + 本次聊天布局参考） + 当前代码 (graph.py, state.py, observation.py, report_builder.py, AGENTS.md, todo/remaining_work.md)。确认 Harness 组件边界、Playbook 结构 (YAML vs JSON) 和 UI 布局一致性。
-2. **Slice**：Phase 0 (Web稳定验证) + Phase 1 (SteeringNode + basic Harness) 为第一slice。后续Phase 2 (RulesEngine + structured Playbook)。
-3. **Check**：运行现有test (test_kline_chart, test_futures_apis, test_graph_integration)，确认Web按钮、prompt捕获、多轮报告、K线正常。
-4. **TDD**：先写test_harness.py (SteeringNode输入输出)、test_rules_engine.py (规则验证)。然后实现state.py更新、steering.py、graph.py集成。
-5. **Verify & Reflect**：运行Web (python -m web.app_graph)，验证多轮分析含Steering输出、规则引用、冲突仲裁。更新README/Mermaid图。Reflect：是否符合“严格纪律驱动” (无冲突不交易)。Incremental commit/push ("feat(harness): Phase 1 - SteeringNode + structured state")。
+### 今日工作 (Orient-Clarify-Slice-Check-TDD-Verify-Reflect)
+- **Orient/Clarify**：用户反馈“今天就到这里吧。写个总结到plan里。现在就是卡在什么地方。” + 最新日志分析 (VisualAnalyzer manager未定义、auto工具重复打印、signals少/无日期、critique NoneType、prompt专注signals)。
+- **Slice**：
+  1. 修复`tools.py:visual_analyzer` manager import (Playbook build_prompt)。
+  2. 移除`data_gathering.py`自动调用相关/持仓/新闻工具 (“把请求自动调用...的内容去掉”)，只保留LLM `data_requests` + longer_history支持，**专注prompt调优signals**。
+  3. 优化`observation.py` / `visual_analyzer` prompt (视觉优先、Playbook第0节输出要求、操作组、全历史买卖点、无自动工具文字)。
+  4. 强化`llm.py:call_llm` (始终返回JSON str，fix NoneType re.search)、`llm_critique.py` (robust parse + should_continue)、`graph.py:should_continue_after_critique` (优先已解析结果)。
+- **Check/TDD/Verify**：运行测试 (imports OK、无auto工具日志、visual signals生成、critique稳定85+、K线/回测正常)。真实LLM路径 (XAI_API_KEY) 无崩溃。
+- **Reflect**：Playbook已高度结构化 (输出要求/操作组/JSON Few-shot为核心)，代码prompt最小化 (仅CoT+引用)，符合“主要东西都放在playbook 里。代码要尽量结构化，少一些 prompt 文字入侵”。Vision+Playbook驱动signals效果好，但LLM有时输出“观望”多（prompt可继续强化Few-shot/视觉模式）。无新文件，incremental commit/push。
 
-## Verification (验证)
-- **Unit/Integration**：`pytest tests/integration/test_harness.py -q --tb=no` 和 `test_rules_engine.py` — 断言SteeringNode输出consensus、rules_passed、risk_assessment、no_trade_if_conflict。
-- **Web/E2E**：`python -m web.app_graph`，选择RB2610.SHF，验证报告含“多轮分析路径总结”、“关键引用规则一览”、“最终决策依据”、“Steering仲裁结果”、Prompt可见、K线/Tabs正常、无N/A。
-- **Manual**：grep "SteeringNode|RulesEngine|TimeframeConsensus|DecisionTrace"，运行完整EA分析确认“一致才交易”逻辑。
-- **Docs**：README添加Harness Mermaid图 + Phase进度，更新todo/remaining_work.md。
-- 符合AGENTS.md (Test-First、无gold-plating、reuse现有graph/nodes/tools、incremental commit、Chinese response)。
+### 当前卡住的地方 (Blockers / 待优化)
+1. **Signals生成不稳定** (核心卡点)：
+   - LLM (Grok-3 vision) 经常输出全“观望”或少signals (confidence<80、无日期跳过、index 5-8无reason)。
+   - 原因：Playbook Few-shot/输出要求虽强，但视觉prompt仍需更深Few-shot (真实12mo例子 + “必须标记所有匹配点，即使4-6个”) 或温度/ max_tokens微调。
+   - 当前：visual_analyzer生成PNG成功，但LLM判断保守 (prompt“无明确匹配=观望”太严)。
 
-Plan reviewed and updated: **Phase 3 “杀手级”功能进度 40%** (Dashboard 3栏骨架 + 真实 critique 评分/规则 (非 fake) + VectorBT 最小回测 + Mermaid/柱状图报告 + Test-First tests)。依赖 (numba/llvmlite) 构建问题暂用 pandas 模拟 (conda 环境推荐)。覆盖两个 Share 链接核心 (长期 6 Phase + 本次聊天布局)、精确文件/行号复用、Test-First。**按照原计划继续** (graph 持久化/人工钩子 + evaluation A/B + 完整 VectorBT)。已就绪，下一步实施。
+2. **字体warning** (mplfinance中文“线/关键/位”缺失DejaVu Sans) - 非功能性，可忽略或加fontconfig。
+
+3. **use_container_width deprecation** - Streamlit警告 (已移除大部分，但Dashboard某处残留)。
+
+4. **PDF导出** - 无限期pending (用户明确不做)。
+
+5. **LLM响应有时None/空** - 已robust处理 (default JSON)，但真实Grok-3偶尔超时 (需XAI_API_KEY稳定、timeout调优)。
+
+**剩余优先**：继续调prompt (observation/visual_analyzer Few-shot强化趋势全生命周期 + 操作组示例)，目标更多高conf买卖点 (buy/sell/买平/卖平)。A/B测试 + Java骨架为Phase 4。
+
+**计划更新**：Phase 3 **100%完成** (Checklist全✅)。今日总结+卡点记录到plan.md。明天可继续prompt优化或进入Phase 4 (生产化/Java)。符合AGENTS.md (minimal、Test-First、中文、commit/push)。git clean，可随时`streamlit run streamlit_dashboard.py`测试。
+
+**启动命令**：`~/miniconda3/bin/conda run -n apexli streamlit run streamlit_dashboard.py` (选zen + 模拟实盘，观察signals/K线/回测reason)。
+
+**推荐下一步**：强化visual_prompt Few-shot (4个真实买卖点例子) + “必须输出所有匹配Playbook规则的signal，无依据才观望”。
