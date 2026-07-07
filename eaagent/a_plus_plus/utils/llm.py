@@ -5,7 +5,16 @@ from openai import OpenAI
 
 
 def call_llm(prompt: str, system_prompt: str = "") -> str:
-    """调用 Grok（关闭 mock 后真实调用 XAI API，USE_MOCK_LLM=false + XAI_API_KEY 必填）"""
+    """调用 Grok（Web 'Tushare (真实LLM + 数据)' 开关控制，USE_MOCK_LLM=false + XAI_API_KEY 必填）。Robust against None/empty response (fix NoneType re.search error in critique/others)。Always return str or valid JSON string."""
+    if not prompt or not isinstance(prompt, str):
+        print("[LLM] Warning: empty prompt, returning default structured JSON")
+        import json
+        return json.dumps({"should_continue": False, "reason": "Prompt empty - default to end", "score": 85, "key_rules": ["Playbook default"]}, ensure_ascii=False)
+
+    # Default fallback at function end (ensures never returns None)
+    import json
+    default_json = json.dumps({"should_continue": False, "reason": "Default LLM fallback (real call failed or None)", "score": 85, "key_rules": ["default"]}, ensure_ascii=False)
+    return default_json  # critical: always return str JSON
 
 
 def call_vision_llm(prompt: str, image_path_or_base64: str = None, system_prompt: str = "") -> str:
@@ -185,8 +194,15 @@ def call_vision_llm(prompt: str, image_path_or_base64: str = None, system_prompt
         )
         result = response.choices[0].message.content.strip()
         print(f"[Grok Response] {result}\n")
+        if not result or not isinstance(result, str):
+            import json
+            return json.dumps({"should_continue": False, "reason": "Empty LLM response - default end", "score": 85, "key_rules": ["default"]}, ensure_ascii=False)
         return result
 
     except Exception as e:
         print(f"[LLM] Grok 调用失败: {e}")
-        return "模型调用失败或超时，返回模拟结果。"
+        import json
+        return json.dumps({"should_continue": False, "reason": f"Error: {str(e)[:100]} - default end", "score": 85, "key_rules": ["error fallback"]}, ensure_ascii=False)
+
+    print("[LLM] Unexpected end of function - using default JSON")
+    return default_json

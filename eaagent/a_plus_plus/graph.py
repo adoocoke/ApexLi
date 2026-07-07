@@ -354,11 +354,18 @@ def should_continue_after_critique(state: TAState) -> Literal["continue", "final
 
     critique = state.get("critique_result", {})
     raw_response = critique.get("raw_response", "")
+    should_continue_from_critique = critique.get("should_continue", None)
 
-    # 让 LLM 完全决定轮次（移除强制 <4 轮）
+    # 优先使用 llm_critique 已解析的 should_continue (robust JSON)
+    if should_continue_from_critique is not None:
+        reason = critique.get("reason", "LLM critique decision")
+        color_print(f"  → LLM 决定: should_continue={should_continue_from_critique} | {reason}", Colors.OKCYAN)
+        return "continue" if should_continue_from_critique else "finalize"
+
+    # Fallback: parse raw (handles legacy NoneType)
     try:
         import json, re
-        json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+        json_match = re.search(r'\{.*\}', str(raw_response), re.DOTALL)
         if json_match:
             result = json.loads(json_match.group(0))
             should_continue = result.get("should_continue", False)
@@ -369,10 +376,10 @@ def should_continue_after_critique(state: TAState) -> Literal["continue", "final
         color_print(f"  → JSON 解析失败，默认结束: {e}", Colors.WARNING)
         pass
 
-    # LLM 未明确返回时，默认继续（允许更多轮次生成买卖signal，而非过早结束观望）
-    if state.get("confidence", 0) > 0.92 and not state.get("issues"):
+    # 默认行为：高置信且无问题则结束，否则继续生成更多signals
+    if state.get("confidence", 0) > 0.85 and not state.get("issues"):
         return "finalize"
-    return "continue"  # 默认继续，让LLM在后续轮次基于新K线给出买卖signal
+    return "continue"
 
 def final_output(state: TAState) -> TAState:
     color_print("\n" + "="*70, Colors.BOLD)

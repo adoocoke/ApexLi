@@ -63,35 +63,40 @@ def llm_critique(state: TAState) -> TAState:
 }}"""
 
     system_prompt = state["messages"][0]["content"] if state.get("messages") else ""
-    response = call_llm(prompt, system_prompt)
+    response = call_llm(prompt, system_prompt)  # llm.py now robust (returns JSON string on None/empty/error)
 
     state["critique_result"] = {
         "raw_response": response,
         "has_previous_round": prev_observation is not None
     }
 
-    # Phase 3: 从 LLM JSON 解析真实 critique_score 和 key_rules (非 fake)
+    # Phase 3: 真实critique_score + key_rules (robust re.search + default JSON)
     try:
         import json, re
+        if not isinstance(response, str) or not response.strip():
+            response = '{"should_continue": false, "reason": "Empty response from call_llm", "score": 85, "key_rules": ["default"]}'
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group(0))
-            score = data.get("score", 85)
-            rules = data.get("key_rules", ["规则匹配"])
-            if "critique_scores" not in state:
-                state["critique_scores"] = []
-            state["critique_scores"].append(score)
-            state["critique_result"]["score"] = score
-            state["critique_result"]["key_rules"] = rules
         else:
-            score = 85
-            if "critique_scores" not in state:
-                state["critique_scores"] = []
-            state["critique_scores"].append(score)
-    except Exception:
+            data = json.loads(response) if isinstance(response, str) else {}
+        score = int(data.get("score", 85))
+        rules = data.get("key_rules", ["Playbook规则匹配"])
+        should_continue = data.get("should_continue", False)
+    except Exception as e:
+        print(f"[Critique] JSON parse error: {e}, raw preview: {str(response)[:150] if response else 'None'}")
         score = 85
-        if "critique_scores" not in state:
-            state["critique_scores"] = []
-        state["critique_scores"].append(score)
+        rules = ["default fallback"]
+        should_continue = False
 
+    if "critique_scores" not in state:
+        state["critique_scores"] = []
+    state["critique_scores"].append(score)
+    state["critique_result"].update({
+        "score": score,
+        "key_rules": rules,
+        "should_continue": should_continue
+    })
+
+    color_print(f"  → Critique score: {score} | Continue: {should_continue} | Rules: {rules[:2]}", Colors.OKBLUE if score > 80 else Colors.WARNING)
     return state
