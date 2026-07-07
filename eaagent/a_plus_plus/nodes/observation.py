@@ -23,42 +23,24 @@ def structured_observation(state: TAState) -> TAState:
 
     current_playbook = state.get("current_playbook", "v3")
 
-    # 获取 Fortress 铁律
+    # 结构化prompt - 最小文字入侵，主要依赖Playbook (manager.load + build_prompt已包含输出要求/操作组/JSON Few-shot)
+    # fortress简化为铁律引用，详细规则/输出要求全部来自Playbook文件
     fortress_prompt = build_fortified_observation_prompt(current_playbook)
-
-    # 【正确获取 Playbook 内容】
     playbook_content, _ = manager.load_playbook(current_playbook)
 
-    # 防止 playbook_content 或 prompt 示例中 { } 导致 f-string 解析错误 (ValueError: Invalid format specifier for str)
-    safe_playbook = str(playbook_content)
-    # 简单转义所有 { } 为双括号 (f-string 安全)
-    safe_playbook = safe_playbook.replace("{", "{{").replace("}", "}}")
+    # 防止 { } 导致f-string错误
+    safe_playbook = str(playbook_content).replace("{", "{{").replace("}", "}}")
 
     prompt = f"""{fortress_prompt}
 
-【当前 Playbook 完整内容】
+【当前 Playbook 完整内容（含输出要求、操作组纪律、JSON Few-shot）】
 {safe_playbook}
 
-以下是 {state['current_symbol']} 的日线数据（最近 {len(daily_data)} 根K线）：
+以下是 {state['current_symbol']} 的日线数据（最近 {len(daily_data)} 根K线，优先视觉图片分析）：
 
 {data_str}
 
-【任务要求 - 必须严格遵守】
-
-1. **必须先判断**当前行情是否真的匹配 Playbook 中的规则，再决定是否引用。
-2. `playbook_references` 字段的每一项必须同时包含：
-   - 规则完整标题
-   - 当前市场情况如何匹配这条规则的具体解释（至少一句话）
-3. **工具调用优先**：如果需要额外期货数据（如持仓排名、合约基本信息、相关品种、**新闻/宏观事件**、更长历史K线），**必须先调用工具** (get_futures_holding, get_futures_basic, get_related_futures_dynamic, get_futures_news, generate_kline_chart)。可用工具已注册 (15000积分覆盖, doc_id=290 fut_holding)。调用格式为 tool call tool_name with 。如果工具缺失，输出 "NEED_TOOL: tool_name (reason for analysis)"。
-
-**数据历史要求**：优先使用完整5-12个月日线数据生成**单笔高置信交易信号**（非每个K线单独决策）。如果5个月数据不足，LLM应请求更长历史或额外工具数据。
-
-**使用理由**：
-- get_futures_holding / 仓单(fut_wsr): 判断主力持仓变化与多空博弈（增仓 vs 减仓方向）。
-- get_futures_basic: 了解合约规格、主力列表、历史成交量，确认当前活跃合约。
-- get_futures_news: 捕捉宏观政策、产业库存、国际事件对价格的驱动（e.g. 降准、限产、库存数据），避免纯技术分析脱离基本面。
-
-4. 输出必须严格遵守以下 JSON 格式（不要有多余文字）：
+【任务要求】：严格按Playbook第0节输出要求执行。必须先判断匹配规则再引用。工具调用优先（holding/news等）。生成高置信signals（视觉+Playbook匹配）。输出JSON。
 
 {{
   "phase": "当前所处阶段描述",

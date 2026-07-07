@@ -420,46 +420,19 @@ def visual_analyzer(symbol: str = "RB2610.SHF", months: int = 12, force_new: boo
             print(f"[VisualAnalyzer] Chart generation error: {img_err}. Using text df description for vision prompt.")
             image_ref = None
 
-        # 强视觉prompt (Agent 有限选择基于图片分析, kline数据就是图片数据) - 深度思考版 + Few-shot
-        # 强化: 如果图像无新信息或数据充分, 直接结束分析 (避免重复发送相同图像)
-        vision_prompt = f"""你是一个期货K线视觉分析专家。**一步步思考** (CoT + Few-shot):
+        # 结构化视觉prompt - 最小prompt文字入侵，核心规则/Few-shot/输出要求全部来自Playbook文件 (manager.build_prompt)
+        # 强化: 图像缓存已在上层处理, LLM若数据充分应should_continue=false结束分析
+        playbook_content = manager.build_prompt(playbook_name, max_chars=3500)
+        vision_prompt = f"""你是一个经验丰富的期货K线视觉分析专家。**一步步思考** (CoT)，严格按Playbook输出JSON。
 
-**任务**：严格**基于附加图像** (12个月纯K线 + 量柱 + 关键位, **无MA13/任何均线**)。**不要使用任何文本K线数据或MA相关内容** (kline数据就是图片的数据, **严格只使用当前选定的{playbook_name} Playbook**, 禁止混用其他Playbook概念如zen/v3交叉)。按**当前{playbook_name} Playbook**完整规则标记**所有**匹配买卖点 (4-6个, 覆盖全年趋势全生命周期: 趋势开启=卖出, 趋势结束=卖平, 震荡=卖平/观望)。只有完全无视觉+当前Playbook规则依据才"观望"。
+**当前Playbook完整规则** (必须严格只使用此Playbook，禁止混用)：
+{playbook_content}
 
-**重要规则**：这是**相同12个月K线图像** (多次轮次可能复用同一张图)。如果图像已提供足够信息 (信号一致、高置信、当前{playbook_name} Playbook规则充分覆盖、无新矛盾), **直接输出should_continue=false或结束分析**，不要要求重复相同数据/图像。仅在需要新工具数据 (holding/news/related)时继续。**所有reason必须以“引用{playbook_name}-X.Y”开头**。
+**任务**：基于12个月纯K线图片（量柱、关键位），找出**所有**高置信买卖点（趋势全生命周期）。视觉推断必须匹配Playbook规则。
 
-**当前Playbook完整规则** (必须严格引用当前{playbook_name}具体条目, **不要提及MA13或任何均线** - MA不在分析内容里):
-- 2.1量仓分析: 持仓稳步增加+价格回落 = 空头燃料 (主力增仓确认趋势开启)。
-- 2.3趋势判断: 基于量仓共振和形态判断趋势开启/结束 (不要使用MA/均线)。
-- 3.1背驰判断: 价格新高/新低但MACD柱/量柱面积缩小 = 趋势反转 (卖出或卖平)。
-- 4.2定式确认: 特定K线形态 (吞没, 锤头, 上影, 长阴) + 量仓共振 = 高置信入场/出场。
+**输出要求**：严格遵守Playbook第0节输出要求（具体日期、章节前缀"引用{playbook_name}-X.Y"、confidence>=80、JSON only、无匹配=观望、操作组纪律）。覆盖买入/买平、卖出/卖平组。
 
-**Few-shot (真实12个月图像例子, 必须包含具体日期如2025-XX-XX = 形态成立当天, **严格只用当前{playbook_name} Playbook, 所有reason必须以“引用{playbook_name}-X.Y”开头, 禁止任何zen/v3混用**)**:
-1. 图像 (RB 2025.4, 当前{playbook_name}): **2025-04-08** 连续阳线 + 放量持仓增加 → direction="多头", trend_signal="卖出(趋势开启)", reason="引用{playbook_name}-2.1量仓分析核心逻辑（当前Playbook {playbook_name}）：图像**2025-04-08**附近阳线+放量, 持仓增加提供燃料, 符合{playbook_name}规则", confidence=88
-2. 图像 (RB 2025.5, 当前{playbook_name}): **2025-05-11** 长上影吞没 + 量柱收窄 → direction="空头", trend_signal="卖出(趋势开启)", reason="引用{playbook_name}-3.1背驰判断（当前Playbook {playbook_name}）：图像**2025-05-11**顶部反转上影+量柱收窄, 符合{playbook_name}背驰判断", confidence=85
-3. 图像 (RB 2025.5下旬, 当前{playbook_name}): **2025-05-25** 阴线 + 量能变化, 无明显背驰 → direction="空头", trend_signal="持仓", reason="引用{playbook_name}-2.3趋势判断与行情选择（当前Playbook {playbook_name}）：图像**2025-05-25**后趋势延续, 量仓共振, 符合{playbook_name}规则", confidence=75
-4. 图像 (RB 2025.6, 当前{playbook_name}): **2025-06-23** 底部长下影 + 量柱萎缩 → direction="空头", trend_signal="卖平(趋势结束)", reason="引用{playbook_name}-4.2定式确认（当前Playbook {playbook_name}）：图像**2025-06-23**底部背驰+定式失效, 趋势结束, 买入/买平或卖出/卖平为一组操作 (破规则后必须平仓)", confidence=82
-
-**输出严格JSON** (不要任何额外文字, 只返回JSON对象, **只输出有明确Playbook规则匹配 + 具体日期的高置信signal (confidence>=75)**。**无明确原因/规则匹配/无日期的index (如5-8)绝不能输出为signal**, 必须全部归为**观望** + reason="无明确Playbook规则匹配 (index 5-8无依据或无日期), 严格观望"):
-
-{{
-  "signals": [
-    {{
-      "direction": "多头/空头/观望",
-      "trend_signal": "卖出(趋势开启)/卖平(趋势结束)/持仓/观望",
-      "entry_zone": "价格区间或N/A",
-      "stop_loss": "止损位或N/A",
-      "target": "目标位或N/A",
-      "reason": "引用v3-2.1量仓分析核心逻辑（当前Playbook v3）：图像中**2025-12-25** (或具体形态成立那天)连续阴线+放量长柱, 持仓增加确认空头燃料, 符合v3规则, 因此给出signal (买入/买平或卖出/卖平为一组操作, 破规则后必须平仓; 严格同一Playbook, 无混用zen概念)。",
-      "confidence": 85
-    }}
-    // **严格只输出4-6个有明确日期 + Playbook规则匹配的高置信signal**。**任何无日期或index 5-8无明确依据的必须全部为观望**, reason必须解释“无Playbook依据或无具体日期”
-  ],
-  "should_continue": false  // 如果图像/数据已充分或无新高置信匹配, 推荐结束分析
-}}
-
-**图像已附加** (12个月**纯K线+量柱+关键位** mplfinance图, **无任何MA13/均线**, 严格视觉分析 + **严格follow Playbook** (只量仓/背驰/定式, 不要MA/均线); 可能与上一轮相同)。一步步思考后直接返回JSON (**只输出有明确日期和规则匹配的signal**, 无日期/index 5-8必须观望, 如果无新信息则should_continue=false)。"""
-
+**现在开始分析图片**，只输出JSON。"""
         response = call_vision_llm(vision_prompt, image_ref)
 
         # Parse JSON (common for both image and text fallback) - robust against None/empty
